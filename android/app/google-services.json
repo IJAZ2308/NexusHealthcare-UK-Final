@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "710090105453",
+    "project_id": "medi-bridge-360",
+    "storage_bucket": "medi-bridge-360.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:710090105453:android:c2ea4bbbb9b0ec6cd11564",
+        "android_client_info": {
+          "package_name": "com.example.med_360_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD67vww_Vm_H65Ye-nGbpwxKzZ90XDpDz8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
