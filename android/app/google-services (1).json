@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "710090105453",
-    "project_id": "medi-bridge-360",
-    "storage_bucket": "medi-bridge-360.firebasestorage.app"
+    "project_number": "943831581906",
+    "project_id": "drshahin-uk",
+    "storage_bucket": "drshahin-uk.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:710090105453:android:c2ea4bbbb9b0ec6cd11564",
+        "mobilesdk_app_id": "1:943831581906:android:b167968dd14d55d1e5d90b",
         "android_client_info": {
-          "package_name": "com.example.med_360_app"
+          "package_name": "com.example.dr_shahin_uk"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD67vww_Vm_H65Ye-nGbpwxKzZ90XDpDz8"
+          "current_key": "AIzaSyBVgZSUGJe7yOx3aPnp0ngCr5jTiO-K_G4"
         }
       ],
       "services": {

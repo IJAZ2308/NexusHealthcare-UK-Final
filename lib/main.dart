@@ -13,11 +13,13 @@ void main() async {
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     return const FirebaseOptions(
-      apiKey: 'YOUR_API_KEY',
-      appId: 'YOUR_APP_ID',
-      messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-      projectId: 'YOUR_PROJECT_ID',
-    );
+        apiKey: "AIzaSyCbcpM-BuqGUtfy071fODqwib_Nhm0BrEY",
+        authDomain: "drshahin-uk.firebaseapp.com",
+        projectId: "drshahin-uk",
+        storageBucket: "drshahin-uk.firebasestorage.app",
+        messagingSenderId: "943831581906",
+        appId: "1:943831581906:web:a9812cd3ca574d2ee5d90b",
+        measurementId: "G-KP31V1Q2P9");
   }
 }
 
