@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "943831581906",
+    "project_id": "drshahin-uk",
+    "storage_bucket": "drshahin-uk.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:943831581906:android:b167968dd14d55d1e5d90b",
+        "android_client_info": {
+          "package_name": "com.example.dr_shahin_uk"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "943831581906-h7lr810bkn34tprded7mnu1ton2duil8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dr_shahin_uk",
+            "certificate_hash": "a67cef9941faaec708039b9faf102ca0562549d8"
+          }
+        },
+        {
+          "client_id": "943831581906-qf1pkjql7sbrcomuf8432mcununq57fo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVgZSUGJe7yOx3aPnp0ngCr5jTiO-K_G4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "943831581906-qf1pkjql7sbrcomuf8432mcununq57fo.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "943831581906-ebs18irr3n7ds5svqo70o1tbep8m21uk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.drShahinUk"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
