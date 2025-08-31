@@ -1,43 +1,44 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import '../shared/verify_pending.dart';
+import 'shared/verify_pending.dart';
 
 class RegisterDoctorScreen extends StatefulWidget {
   const RegisterDoctorScreen({super.key});
 
   @override
-  RegisterDoctorScreenState createState() => RegisterDoctorScreenState();
+  State<RegisterDoctorScreen> createState() => _RegisterDoctorScreenState();
 }
 
-class RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
+class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+
   File? _licenseImage;
   String error = '';
   bool loading = false;
 
-  Future<void> pickImage() async {
+  Future<void> _pickImage() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked != null) {
       setState(() => _licenseImage = File(picked.path));
     }
   }
 
-  Future<String> uploadLicense(String uid) async {
+  Future<String> _uploadLicense(String uid) async {
     final ref =
         FirebaseStorage.instance.ref().child('licenses').child('$uid.jpg');
     await ref.putFile(_licenseImage!);
     return await ref.getDownloadURL();
   }
 
-  void registerDoctor() async {
+  Future<void> _registerDoctor() async {
     if (_licenseImage == null) {
-      setState(() => error = "Upload your license to register.");
+      setState(() => error = "Please upload your license.");
       return;
     }
 
@@ -53,7 +54,7 @@ class RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
         password: _passwordController.text.trim(),
       );
 
-      final licenseUrl = await uploadLicense(userCred.user!.uid);
+      final licenseUrl = await _uploadLicense(userCred.user!.uid);
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -73,15 +74,11 @@ class RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
         MaterialPageRoute(builder: (_) => const VerifyPending()),
       );
     } catch (e) {
-      setState(() {
-        error = e.toString();
-      });
+      setState(() => error = e.toString());
     }
 
     if (mounted) {
-      setState(() {
-        loading = false;
-      });
+      setState(() => loading = false);
     }
   }
 
@@ -93,6 +90,7 @@ class RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
         padding: const EdgeInsets.all(20),
         child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (error.isNotEmpty)
                 Text(error, style: const TextStyle(color: Colors.red)),
@@ -100,10 +98,12 @@ class RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Full Name"),
               ),
+              const SizedBox(height: 10),
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: "Email"),
               ),
+              const SizedBox(height: 10),
               TextField(
                 controller: _passwordController,
                 decoration: const InputDecoration(labelText: "Password"),
@@ -111,17 +111,18 @@ class RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               ),
               const SizedBox(height: 20),
               _licenseImage != null
-                  ? Image.file(_licenseImage!, height: 100)
-                  : const Text("No License Uploaded"),
+                  ? Image.file(_licenseImage!, height: 120)
+                  : const Text("No license uploaded"),
+              const SizedBox(height: 10),
               ElevatedButton(
-                onPressed: pickImage,
+                onPressed: _pickImage,
                 child: const Text("Upload License"),
               ),
               const SizedBox(height: 20),
               loading
-                  ? const CircularProgressIndicator()
+                  ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
-                      onPressed: registerDoctor,
+                      onPressed: _registerDoctor,
                       child: const Text("Register"),
                     ),
             ],

@@ -5,7 +5,7 @@ import 'package:dr_shahin_uk/screens/lib/screens/patient_dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../login_screen.dart';
+import '../auth/login_screen.dart';
 import '../../screens/shared/verify_pending.dart';
 
 class SplashScreen extends StatefulWidget {

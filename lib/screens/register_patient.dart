@@ -7,17 +7,18 @@ class RegisterPatientScreen extends StatefulWidget {
   const RegisterPatientScreen({super.key});
 
   @override
-  RegisterPatientScreenState createState() => RegisterPatientScreenState();
+  State<RegisterPatientScreen> createState() => _RegisterPatientScreenState();
 }
 
-class RegisterPatientScreenState extends State<RegisterPatientScreen> {
+class _RegisterPatientScreenState extends State<RegisterPatientScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+
   String error = '';
   bool loading = false;
 
-  void registerPatient() async {
+  Future<void> _registerPatient() async {
     setState(() {
       loading = true;
       error = '';
@@ -38,24 +39,20 @@ class RegisterPatientScreenState extends State<RegisterPatientScreen> {
         'email': _emailController.text.trim(),
         'name': _nameController.text.trim(),
         'role': 'patient',
-        'approved': true, // patients are auto-approved
+        'approved': true, // patients auto-approved
       });
 
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => PatientDashboard()),
+        MaterialPageRoute(builder: (_) => const PatientDashboard()),
       );
     } catch (e) {
-      setState(() {
-        error = e.toString();
-      });
+      setState(() => error = e.toString());
     }
 
     if (mounted) {
-      setState(() {
-        loading = false;
-      });
+      setState(() => loading = false);
     }
   }
 
@@ -66,6 +63,7 @@ class RegisterPatientScreenState extends State<RegisterPatientScreen> {
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (error.isNotEmpty)
               Text(error, style: const TextStyle(color: Colors.red)),
@@ -73,10 +71,12 @@ class RegisterPatientScreenState extends State<RegisterPatientScreen> {
               controller: _nameController,
               decoration: const InputDecoration(labelText: "Full Name"),
             ),
+            const SizedBox(height: 10),
             TextField(
               controller: _emailController,
               decoration: const InputDecoration(labelText: "Email"),
             ),
+            const SizedBox(height: 10),
             TextField(
               controller: _passwordController,
               decoration: const InputDecoration(labelText: "Password"),
@@ -84,9 +84,9 @@ class RegisterPatientScreenState extends State<RegisterPatientScreen> {
             ),
             const SizedBox(height: 20),
             loading
-                ? const CircularProgressIndicator()
+                ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-                    onPressed: registerPatient,
+                    onPressed: _registerPatient,
                     child: const Text("Register"),
                   ),
           ],
