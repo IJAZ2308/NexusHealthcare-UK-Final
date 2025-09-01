@@ -1,6 +1,6 @@
 class Doctor {
   final String uid;
-  final String category;
+  final String category; // Specialization
   final String city;
   final String email;
   final String firstName;
@@ -31,8 +31,8 @@ class Doctor {
     required this.totalReviews,
   });
 
-  // Factory constructor to create a Doctor from a Map (e.g., Firebase snapshot)
-  factory Doctor.fromMap(Map<dynamic, dynamic> map, String uid,
+  /// ✅ Factory constructor for Firestore documents
+  factory Doctor.fromMap(Map<String, dynamic> map, String uid,
       {required String id}) {
     return Doctor(
       uid: uid,
@@ -44,7 +44,7 @@ class Doctor {
       profileImageUrl: map['profileImageUrl'] ?? '',
       qualification: map['qualification'] ?? '',
       phoneNumber: map['phoneNumber'] ?? '',
-      yearsOfExperience: map['yearsOfExperience'] ?? '',
+      yearsOfExperience: map['yearsOfExperience']?.toString() ?? '0',
       latitude: (map['latitude'] ?? 0).toDouble(),
       longitude: (map['longitude'] ?? 0).toDouble(),
       numberOfReviews: map['numberOfReviews'] ?? 0,
@@ -52,9 +52,29 @@ class Doctor {
     );
   }
 
-  // Full name getter
+  /// Convert to Map for saving in Firestore
+  Map<String, dynamic> toMap() {
+    return {
+      'uid': uid,
+      'category': category,
+      'city': city,
+      'email': email,
+      'firstName': firstName,
+      'lastName': lastName,
+      'profileImageUrl': profileImageUrl,
+      'qualification': qualification,
+      'phoneNumber': phoneNumber,
+      'yearsOfExperience': yearsOfExperience,
+      'latitude': latitude,
+      'longitude': longitude,
+      'numberOfReviews': numberOfReviews,
+      'totalReviews': totalReviews,
+    };
+  }
+
+  /// Full name getter
   String get name => '$firstName $lastName';
 
-  // Specialization getter (alias for category)
+  /// Specialization alias
   String get specialization => category;
 }
