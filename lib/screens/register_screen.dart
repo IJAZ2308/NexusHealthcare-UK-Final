@@ -17,7 +17,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final nameController = TextEditingController();
-  String role = "patient";
+  String role = "patient"; // Default role
   File? licenseFile;
   String error = '';
 
@@ -30,25 +30,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // ...existing code...
   void registerUser() async {
     final success = await AuthService().registerUser(
       email: emailController.text.trim(),
       password: passwordController.text.trim(),
       name: nameController.text.trim(),
       role: role,
-      licenseFile: role == 'doctor' ? licenseFile : null,
+      licenseFile: role == 'doctor' ? licenseFile : null, // only for doctors
     );
+
     if (!mounted) return;
     if (success) {
-      Navigator.pop(context);
+      Navigator.pop(context); // go back to login or previous screen
     } else {
       setState(() {
         error = 'Registration failed. Please try again.';
       });
     }
   }
-// ...existing code...
 
   @override
   Widget build(BuildContext context) {
@@ -72,16 +71,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: const InputDecoration(labelText: "Password"),
             ),
             const SizedBox(height: 10),
+
+            // Role selection (patient / doctor / admin)
             DropdownButtonFormField<String>(
               value: role,
               items: const [
                 DropdownMenuItem(value: "patient", child: Text("Patient")),
                 DropdownMenuItem(value: "doctor", child: Text("Doctor")),
+                DropdownMenuItem(value: "admin", child: Text("Admin")),
               ],
               onChanged: (val) => setState(() => role = val!),
               decoration: const InputDecoration(labelText: "Role"),
             ),
             const SizedBox(height: 10),
+
+            // License upload only for doctors
             if (role == 'doctor')
               Column(
                 children: [
@@ -96,11 +100,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                 ],
               ),
+
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: registerUser,
               child: const Text("Register"),
             ),
+
             if (error.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 10),

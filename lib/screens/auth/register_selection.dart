@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dr_shahin_uk/screens/register_patient.dart';
 import 'package:dr_shahin_uk/screens/register_doctor.dart';
+import 'package:dr_shahin_uk/screens/register_admin.dart'; // new import
 
 class RegisterSelectionScreen extends StatelessWidget {
   const RegisterSelectionScreen({super.key});
@@ -24,10 +25,13 @@ class RegisterSelectionScreen extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 40),
+
+            // ✅ Patient button (Blue background + White text)
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
-                backgroundColor: Colors.green,
+                backgroundColor: Colors.blue, // background
+                foregroundColor: Colors.white, // text color
               ),
               child: const Text("Register as Patient",
                   style: TextStyle(fontSize: 18)),
@@ -39,11 +43,15 @@ class RegisterSelectionScreen extends StatelessWidget {
                 );
               },
             ),
+
             const SizedBox(height: 20),
+
+            // ✅ Doctor button (Red background + Black text)
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
-                backgroundColor: Colors.deepPurple,
+                backgroundColor: Colors.red, // background
+                foregroundColor: Colors.black, // text color
               ),
               child: const Text("Register as Doctor",
                   style: TextStyle(fontSize: 18)),
@@ -52,6 +60,26 @@ class RegisterSelectionScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const RegisterDoctorScreen()),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            // ✅ Admin button (Green background + White text)
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                backgroundColor: Colors.green, // background
+                foregroundColor: Colors.white, // text color
+              ),
+              child: const Text("Register as Admin",
+                  style: TextStyle(fontSize: 18)),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const RegisterAdminScreen()),
                 );
               },
             ),

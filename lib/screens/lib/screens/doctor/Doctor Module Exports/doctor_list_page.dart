@@ -17,6 +17,32 @@ class _DoctorListPageState extends State<DoctorListPage> {
   List<Doctor> _doctors = [];
   bool _isLoading = true;
 
+  // List of specialties
+  final List<Map<String, String>> specialties = [
+    {"title": "General Surgery", "icon": "assets/images/surgery.png"},
+    {"title": "Orthopaedics", "icon": "assets/images/ortho.png"},
+    {"title": "Neurosurgery", "icon": "assets/images/neuro.png"},
+    {"title": "Cardiothoracic", "icon": "assets/images/heart.png"},
+    {"title": "Vascular Surgery", "icon": "assets/images/vascular.png"},
+    {"title": "ENT", "icon": "assets/images/ent.png"},
+    {"title": "Ophthalmology", "icon": "assets/images/eye.png"},
+    {"title": "Urology", "icon": "assets/images/urology.png"},
+    {"title": "Plastic Surgery", "icon": "assets/images/plastic.png"},
+    {"title": "Paediatric Surgery", "icon": "assets/images/child.png"},
+    {"title": "Neonatology", "icon": "assets/images/baby.png"},
+    {"title": "Obstetrics & Gynaecology (O&G)", "icon": "assets/images/og.png"},
+    {"title": "Oncology", "icon": "assets/images/onco.png"},
+    {"title": "General Practice", "icon": "assets/images/gp.png"},
+    {
+      "title": "Radiology and ultrasound department",
+      "icon": "assets/images/ru.png"
+    },
+    {"title": "Emergency service", "icon": "assets/images/es.png"},
+    {"title": "Public Health", "icon": "assets/images/public.png"},
+    {"title": "Occupational Health", "icon": "assets/images/work.png"},
+    {"title": "See All", "icon": "assets/images/grid.png"},
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -71,26 +97,32 @@ class _DoctorListPageState extends State<DoctorListPage> {
                     ),
                   ),
                   const SizedBox(height: 16.0),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildCategoryCard(
-                          context, 'Cardiologist', 'assets/images/heart.png'),
-                      _buildCategoryCard(
-                          context, 'Dentist', 'assets/images/dental.png'),
-                    ],
+
+                  // Specialties Grid
+                  SizedBox(
+                    height: 250, // adjust based on design
+                    child: GridView.builder(
+                      scrollDirection: Axis.horizontal,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: 1.3,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                      ),
+                      itemCount: specialties.length,
+                      itemBuilder: (context, index) {
+                        final spec = specialties[index];
+                        return _buildCategoryCard(
+                          context,
+                          spec["title"]!,
+                          spec["icon"]!,
+                          isHighlighed: spec["title"] == "See All",
+                        );
+                      },
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildCategoryCard(
-                          context, 'Oncologist', 'assets/images/onco.png'),
-                      _buildCategoryCard(
-                          context, 'See All', 'assets/images/grid.png',
-                          isHighlighed: true),
-                    ],
-                  ),
+
                   const SizedBox(height: 30),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -113,6 +145,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
                       ),
                     ],
                   ),
+
                   Expanded(
                     child: ListView.builder(
                       itemCount: _doctors.length,
@@ -142,7 +175,6 @@ class _DoctorListPageState extends State<DoctorListPage> {
 Widget _buildCategoryCard(BuildContext context, String title, dynamic icon,
     {bool isHighlighed = false}) {
   return Container(
-    width: MediaQuery.of(context).size.width * 0.4,
     decoration: BoxDecoration(
       color: isHighlighed ? const Color(0xff006AFA) : const Color(0xffF0EFFF),
       borderRadius: BorderRadius.circular(15),
@@ -157,7 +189,7 @@ Widget _buildCategoryCard(BuildContext context, String title, dynamic icon,
         borderRadius: BorderRadius.circular(15),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20),
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -165,7 +197,7 @@ Widget _buildCategoryCard(BuildContext context, String title, dynamic icon,
               Icon(
                 icon,
                 size: 40,
-                color: isHighlighed ? Colors.white : const Color(0xffF0EFFF),
+                color: isHighlighed ? Colors.white : const Color(0xff006AFA),
               )
             else
               Image.asset(
@@ -176,8 +208,10 @@ Widget _buildCategoryCard(BuildContext context, String title, dynamic icon,
             const SizedBox(height: 16),
             Text(
               title,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
                 color: isHighlighed ? Colors.white : const Color(0xff006AFA),
               ),
             ),

@@ -1,6 +1,7 @@
 // lib/screens/patient_dashboard.dart
 
 import 'package:dr_shahin_uk/screens/lib/screens/patient/appointment_list_page.dart';
+import 'package:dr_shahin_uk/screens/view_documents_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -8,7 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'bed_list_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
-import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
+
 // ✅ Instead of Appointment model, you need an AppointmentScreen widget
 
 class PatientDashboard extends StatelessWidget {
@@ -128,7 +129,7 @@ class PatientDashboard extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const UploadDocumentScreen(),
+                        builder: (_) => const ViewDocumentsScreen(),
                       ),
                     );
                   },

@@ -1,10 +1,10 @@
+// lib/screens/register_doctor_screen.dart
+
 import 'dart:io';
+import 'package:dr_shahin_uk/screens/shared/verify_pending.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'shared/verify_pending.dart';
+import '../services/auth_service.dart';
 
 class RegisterDoctorScreen extends StatefulWidget {
   const RegisterDoctorScreen({super.key});
@@ -14,6 +14,7 @@ class RegisterDoctorScreen extends StatefulWidget {
 }
 
 class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
+  final _authService = AuthService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
@@ -29,13 +30,6 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
     }
   }
 
-  Future<String> _uploadLicense(String uid) async {
-    final ref =
-        FirebaseStorage.instance.ref().child('licenses').child('$uid.jpg');
-    await ref.putFile(_licenseImage!);
-    return await ref.getDownloadURL();
-  }
-
   Future<void> _registerDoctor() async {
     if (_licenseImage == null) {
       setState(() => error = "Please upload your license.");
@@ -47,39 +41,25 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       error = '';
     });
 
-    try {
-      UserCredential userCred =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+    final success = await _authService.registerUser(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+      name: _nameController.text.trim(),
+      role: 'doctor',
+      licenseFile: _licenseImage,
+    );
 
-      final licenseUrl = await _uploadLicense(userCred.user!.uid);
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCred.user!.uid)
-          .set({
-        'uid': userCred.user!.uid,
-        'email': _emailController.text.trim(),
-        'name': _nameController.text.trim(),
-        'role': 'doctor',
-        'approved': false,
-        'licenseUrl': licenseUrl,
-      });
-
+    if (success) {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const VerifyPending()),
       );
-    } catch (e) {
-      setState(() => error = e.toString());
+    } else {
+      setState(() => error = "Registration failed. Try again.");
     }
 
-    if (mounted) {
-      setState(() => loading = false);
-    }
+    if (mounted) setState(() => loading = false);
   }
 
   @override
