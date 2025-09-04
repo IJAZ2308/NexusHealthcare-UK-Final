@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:dr_shahin_uk/screens/shared/verify_pending.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/auth_service.dart';
+import 'package:dr_shahin_uk/main.dart'; // Import AuthService from main.dart
 
 class RegisterDoctorScreen extends StatefulWidget {
   const RegisterDoctorScreen({super.key});

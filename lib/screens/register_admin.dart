@@ -1,7 +1,7 @@
 // lib/screens/register_admin.dart
 
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import 'package:dr_shahin_uk/main.dart'; // Import AuthService from main.dart
 
 class RegisterAdminScreen extends StatefulWidget {
   const RegisterAdminScreen({super.key});

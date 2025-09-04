@@ -3,8 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-
-import '../services/auth_service.dart';
+import 'package:dr_shahin_uk/main.dart'; // Import AuthService from main.dart
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
