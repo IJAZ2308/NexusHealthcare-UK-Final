@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class BookAppointmentScreen extends StatefulWidget {
   final String doctorId;
@@ -34,14 +34,21 @@ class BookAppointmentScreenState extends State<BookAppointmentScreen> {
         "${selectedDate!.year}-${selectedDate!.month}-${selectedDate!.day}";
     final appointmentTime = "${selectedTime!.hour}:${selectedTime!.minute}";
 
-    await FirebaseFirestore.instance.collection('appointments').add({
+    final dbRef = FirebaseDatabase.instance.ref().child("appointments");
+
+    // Generate unique key for appointment
+    final newAppointmentRef = dbRef.push();
+
+    await newAppointmentRef.set({
+      'id': newAppointmentRef.key, // ✅ store ID
       'patientId': uid,
       'doctorId': widget.doctorId,
+      'doctorName': widget.doctorName,
       'date': appointmentDate,
       'time': appointmentTime,
       'reason': _reasonController.text.trim(),
       'status': 'pending',
-      'createdAt': Timestamp.now(),
+      'createdAt': DateTime.now().toIso8601String(),
     });
 
     if (!mounted) return;
@@ -63,8 +70,9 @@ class BookAppointmentScreenState extends State<BookAppointmentScreen> {
             children: [
               TextFormField(
                 controller: _reasonController,
-                decoration:
-                    const InputDecoration(labelText: "Reason for visit"),
+                decoration: const InputDecoration(
+                  labelText: "Reason for visit",
+                ),
                 validator: (val) =>
                     val!.isEmpty ? 'Please enter a reason' : null,
               ),
@@ -73,7 +81,7 @@ class BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 child: Text(
                   selectedDate == null
                       ? "Choose Date"
-                      : selectedDate.toString(),
+                      : "${selectedDate!.day}-${selectedDate!.month}-${selectedDate!.year}",
                 ),
                 onPressed: () async {
                   final picked = await showDatePicker(
@@ -89,7 +97,7 @@ class BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 child: Text(
                   selectedTime == null
                       ? "Choose Time"
-                      : selectedTime.toString(),
+                      : "${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}",
                 ),
                 onPressed: () async {
                   final picked = await showTimePicker(

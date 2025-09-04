@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:cloudinary_sdk/cloudinary_sdk.dart';
@@ -14,61 +14,64 @@ class UploadDocumentScreen extends StatefulWidget {
 }
 
 class UploadDocumentScreenState extends State<UploadDocumentScreen> {
-  File? _selectedFile;
-  final TextEditingController _docTitleController = TextEditingController();
-  bool _uploading = false;
+  File? selectedFile;
+  final TextEditingController docTitleController = TextEditingController();
+  bool uploading = false;
 
-  // ✅ Initialize Cloudinary
+  // Initialize Cloudinary
   final cloudinary = Cloudinary.full(
-    apiKey: "YOUR_API_KEY",
-    apiSecret: "YOUR_API_SECRET", // ⚠️ use unsigned preset in production
-    cloudName: "YOUR_CLOUD_NAME",
+    apiKey: '755248332976533CgcnvLlza96bFvfGcx1CamvLDQ4',
+    apiSecret: 'CgcnvLlza96bFvfGcx1CamvLDQ4',
+    cloudName: 'dij8c34qm',
   );
 
-  Future<void> _pickFile() async {
+  Future<void> pickFile() async {
     final result = await FilePicker.platform.pickFiles();
     if (result != null && result.files.single.path != null) {
       setState(() {
-        _selectedFile = File(result.files.single.path!);
+        selectedFile = File(result.files.single.path!);
       });
     }
   }
 
-  Future<void> _uploadFile() async {
-    if (_selectedFile == null || _docTitleController.text.isEmpty) return;
+  Future<void> uploadFile() async {
+    if (selectedFile == null || docTitleController.text.isEmpty) return;
 
-    setState(() => _uploading = true);
+    setState(() => uploading = true);
     final uid = FirebaseAuth.instance.currentUser!.uid;
+    final DatabaseReference documentsRef = FirebaseDatabase.instance
+        .ref()
+        .child('documents');
 
     try {
-      // ✅ Upload to Cloudinary
+      // Upload to Cloudinary
       final response = await cloudinary.uploadResource(
         CloudinaryUploadResource(
-          filePath: _selectedFile!.path,
+          filePath: selectedFile!.path,
           resourceType: CloudinaryResourceType.auto,
-          folder: "documents/$uid", // organize by user
+          folder: "documents/$uid",
         ),
       );
 
       if (response.isSuccessful) {
         final url = response.secureUrl;
 
-        // ✅ Save Cloudinary URL in Firestore
-        await FirebaseFirestore.instance.collection('documents').add({
+        // Save metadata to Realtime Database
+        await documentsRef.push().set({
           'userId': uid,
-          'title': _docTitleController.text,
+          'title': docTitleController.text,
           'url': url,
-          'uploadedAt': Timestamp.now(),
+          'uploadedAt': DateTime.now().millisecondsSinceEpoch,
         });
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document uploaded to Cloudinary')),
+          const SnackBar(content: Text('Document uploaded successfully')),
         );
 
-        _docTitleController.clear();
+        docTitleController.clear();
         setState(() {
-          _selectedFile = null;
+          selectedFile = null;
         });
       } else {
         developer.log("Cloudinary upload failed: ${response.error}");
@@ -85,9 +88,7 @@ class UploadDocumentScreenState extends State<UploadDocumentScreen> {
       ).showSnackBar(const SnackBar(content: Text('Upload failed')));
     }
 
-    if (mounted) {
-      setState(() => _uploading = false);
-    }
+    if (mounted) setState(() => uploading = false);
   }
 
   @override
@@ -99,21 +100,21 @@ class UploadDocumentScreenState extends State<UploadDocumentScreen> {
         child: Column(
           children: [
             TextField(
-              controller: _docTitleController,
+              controller: docTitleController,
               decoration: const InputDecoration(labelText: 'Document Title'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: _pickFile,
+              onPressed: pickFile,
               child: Text(
-                _selectedFile != null ? 'File Selected' : 'Pick Document',
+                selectedFile != null ? 'File Selected' : 'Pick Document',
               ),
             ),
             const SizedBox(height: 20),
-            _uploading
+            uploading
                 ? const CircularProgressIndicator()
                 : ElevatedButton(
-                    onPressed: _uploadFile,
+                    onPressed: uploadFile,
                     child: const Text('Upload Document'),
                   ),
           ],

@@ -1,40 +1,173 @@
-// lib/screens/bed_list_screen.dart
-
-import 'package:dr_shahin_uk/screens/lib/screens/models/bed_model.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class BedListScreen extends StatelessWidget {
-  const BedListScreen({super.key});
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+    "hospitals",
+  );
+
+  BedListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Bed Availability")),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('hospitals').snapshots(),
+      appBar: AppBar(title: const Text("Available Beds")),
+      body: StreamBuilder<DatabaseEvent>(
+        stream: _dbRef.onValue,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const CircularProgressIndicator();
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          final hospitals = snapshot.data!.docs
-              .map((doc) => HospitalBed.fromMap(
-                  doc.id, doc.data() as Map<String, dynamic>))
-              .toList();
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+            return const Center(child: Text("No hospitals available"));
+          }
+
+          // Convert snapshot.value into a Map
+          final Map<dynamic, dynamic> hospitals =
+              snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+
+          final hospitalList = hospitals.entries.toList();
 
           return ListView.builder(
-            itemCount: hospitals.length,
+            itemCount: hospitalList.length,
             itemBuilder: (context, index) {
-              final h = hospitals[index];
+              final hospitalId = hospitalList[index].key;
+              final hospital = hospitalList[index].value as Map;
+
+              final name = hospital['name'] ?? 'Unknown';
+              final imageUrl = hospital['imageUrl'];
+              final lat = hospital['latitude']?.toDouble() ?? 0.0;
+              final lng = hospital['longitude']?.toDouble() ?? 0.0;
+              final availableBeds = hospital['availableBeds'] ?? 0;
+
               return Card(
-                child: ListTile(
-                  title: Text(h.name),
-                  subtitle:
-                      Text("Available Beds: ${h.availableBeds}/${h.totalBeds}"),
+                margin: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    imageUrl != null
+                        ? Image.network(
+                            imageUrl,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(height: 180, color: Colors.grey),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text("Available Beds: $availableBeds"),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  _openMap(lat, lng, name);
+                                },
+                                icon: const Icon(Icons.directions),
+                                label: const Text("Get Directions"),
+                              ),
+                              const SizedBox(width: 10),
+                              ElevatedButton.icon(
+                                onPressed: availableBeds > 0
+                                    ? () {
+                                        _bookBed(
+                                          context,
+                                          hospitalId,
+                                          availableBeds,
+                                        );
+                                      }
+                                    : null,
+                                icon: const Icon(Icons.local_hospital),
+                                label: const Text("Book Bed"),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  void _openMap(double lat, double lng, String name) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      throw 'Could not open the map.';
+    }
+  }
+
+  void _bookBed(BuildContext context, String hospitalId, int availableBeds) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Book Bed"),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: "Enter number of beds needed",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final bedsNeeded = int.tryParse(controller.text) ?? 0;
+              if (bedsNeeded > 0) {
+                if (bedsNeeded <= availableBeds) {
+                  await FirebaseDatabase.instance
+                      .ref()
+                      .child("hospitals/$hospitalId")
+                      .update({'availableBeds': availableBeds - bedsNeeded});
+
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Bed booked successfully!")),
+                    );
+                  }
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Not enough beds available."),
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text("Book"),
+          ),
+        ],
       ),
     );
   }

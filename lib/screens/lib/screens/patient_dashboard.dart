@@ -66,9 +66,7 @@ class PatientDashboard extends StatelessWidget {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const DoctorListPage(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const DoctorListPage()),
                     );
                   },
                 ),
@@ -95,9 +93,7 @@ class PatientDashboard extends StatelessWidget {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const BedListScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => BedListScreen()),
                     );
                   },
                 ),

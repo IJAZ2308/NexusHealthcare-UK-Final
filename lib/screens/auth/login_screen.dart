@@ -1,3 +1,5 @@
+// lib/screens/login_screen.dart
+
 import 'package:dr_shahin_uk/screens/auth/register_selection.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/admin_dashboard.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard.dart';
@@ -5,7 +7,7 @@ import 'package:dr_shahin_uk/screens/lib/screens/patient_dashboard.dart';
 import 'package:dr_shahin_uk/screens/shared/verify_pending.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +18,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final DatabaseReference _db = FirebaseDatabase.instance.ref();
+
   final _formKey = GlobalKey<FormState>();
 
   String email = '';
@@ -24,7 +28,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscureText = true;
   String error = "";
 
-  /// Login using FirebaseAuth & Firestore role system
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -34,51 +37,61 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Sign in user
+      // 1️⃣ Sign in user
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password.trim(),
       );
 
       final uid = userCredential.user?.uid;
-      if (uid != null) {
-        // Fetch role from Firestore
-        DocumentSnapshot userDoc =
-            await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (uid == null) {
+        setState(() => error = "Login failed. UID not found.");
+        return;
+      }
 
-        final role = userDoc['role'] ?? '';
+      // 2️⃣ Get user data from Realtime Database
+      final snapshot = await _db.child("users").child(uid).get();
 
-        if (!mounted) return;
-        if (role == 'pending_verification') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const VerifyPending()),
-          );
-        } else if (role == 'patient') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const PatientDashboard()),
-          );
-        } else if (role == 'doctor') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const DoctorDashboard()),
-          );
-        } else if (role == 'admin') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const AdminDashboard()),
-          );
-        } else {
-          setState(() => error = 'Unknown role. Contact admin.');
-        }
+      if (!snapshot.exists) {
+        setState(() => error = "User not found in database.");
+        return;
+      }
+
+      final data = Map<String, dynamic>.from(snapshot.value as Map);
+
+      String role = data['role'] ?? '';
+      bool verified = data['isVerified'] ?? true;
+
+      if (!mounted) return;
+
+      // 3️⃣ Navigate based on role & verification
+      if (role == 'doctor' && !verified) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const VerifyPending()),
+        );
+      } else if (role == 'doctor' && verified) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const DoctorDashboard()),
+        );
+      } else if (role == 'patient') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const PatientDashboard()),
+        );
+      } else if (role == 'admin') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+        );
+      } else {
+        setState(() => error = 'Unknown role. Contact admin.');
       }
     } on FirebaseAuthException catch (e) {
       setState(() => error = e.message ?? 'Login failed.');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -117,10 +130,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 40),
 
                         if (error.isNotEmpty)
-                          Text(error,
-                              style: const TextStyle(color: Colors.red)),
+                          Text(
+                            error,
+                            style: const TextStyle(color: Colors.red),
+                          ),
 
-                        // Email
+                        // Email Field
                         SizedBox(
                           height: 50,
                           child: TextFormField(
@@ -148,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        // Password
+                        // Password Field
                         SizedBox(
                           height: 50,
                           child: TextFormField(
@@ -201,7 +216,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 borderRadius: BorderRadius.circular(10.0),
                               ),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 24, vertical: 12),
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
                             ),
                             child: const Text(
                               'Login',
@@ -214,10 +231,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 20),
 
-                        // Register link
+                        // Register Link
                         SizedBox(
                           width: MediaQuery.of(context).size.width,
                           child: TextButton(

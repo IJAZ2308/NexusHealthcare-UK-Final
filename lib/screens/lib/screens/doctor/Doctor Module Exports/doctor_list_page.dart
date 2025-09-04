@@ -12,12 +12,13 @@ class DoctorListPage extends StatefulWidget {
 }
 
 class _DoctorListPageState extends State<DoctorListPage> {
-  final DatabaseReference _database =
-      FirebaseDatabase.instance.ref().child('Doctors');
+  final DatabaseReference _database = FirebaseDatabase.instance.ref().child(
+    'Doctors',
+  );
   List<Doctor> _doctors = [];
   bool _isLoading = true;
 
-  // List of specialties
+  // List of specialties with asset icons
   final List<Map<String, String>> specialties = [
     {"title": "General Surgery", "icon": "assets/images/surgery.png"},
     {"title": "Orthopaedics", "icon": "assets/images/ortho.png"},
@@ -35,7 +36,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
     {"title": "General Practice", "icon": "assets/images/gp.png"},
     {
       "title": "Radiology and ultrasound department",
-      "icon": "assets/images/ru.png"
+      "icon": "assets/images/ru.png",
     },
     {"title": "Emergency service", "icon": "assets/images/es.png"},
     {"title": "Public Health", "icon": "assets/images/public.png"},
@@ -71,9 +72,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -82,15 +81,12 @@ class _DoctorListPageState extends State<DoctorListPage> {
                   const SizedBox(height: 30.0),
                   const Text(
                     'Find your doctor,\nand book an appointment',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 30),
                   Text(
                     'Find Doctor by Category',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.normal,
                       color: Colors.grey,
@@ -100,16 +96,16 @@ class _DoctorListPageState extends State<DoctorListPage> {
 
                   // Specialties Grid
                   SizedBox(
-                    height: 250, // adjust based on design
+                    height: 250,
                     child: GridView.builder(
                       scrollDirection: Axis.horizontal,
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 1.3,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
+                            crossAxisCount: 2,
+                            childAspectRatio: 1.3,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
                       itemCount: specialties.length,
                       itemBuilder: (context, index) {
                         final spec = specialties[index];
@@ -172,8 +168,12 @@ class _DoctorListPageState extends State<DoctorListPage> {
   }
 }
 
-Widget _buildCategoryCard(BuildContext context, String title, dynamic icon,
-    {bool isHighlighed = false}) {
+Widget _buildCategoryCard(
+  BuildContext context,
+  String title,
+  dynamic icon, {
+  bool isHighlighed = false,
+}) {
   return Container(
     decoration: BoxDecoration(
       color: isHighlighed ? const Color(0xff006AFA) : const Color(0xffF0EFFF),
@@ -185,9 +185,7 @@ Widget _buildCategoryCard(BuildContext context, String title, dynamic icon,
     child: Card(
       color: isHighlighed ? const Color(0xff006AFA) : const Color(0xffF0EFFF),
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
         child: Column(
@@ -204,6 +202,13 @@ Widget _buildCategoryCard(BuildContext context, String title, dynamic icon,
                 icon,
                 width: 40,
                 height: 40,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.image_not_supported,
+                    size: 40,
+                    color: Colors.grey,
+                  );
+                },
               ),
             const SizedBox(height: 16),
             Text(

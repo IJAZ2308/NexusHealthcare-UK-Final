@@ -4,7 +4,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
 import 'package:dr_shahin_uk/screens/auth/login_screen.dart';
 
@@ -46,7 +46,7 @@ class DefaultFirebaseOptions {
 // ------------------------ AUTH SERVICE ------------------------
 class AuthService {
   final _auth = FirebaseAuth.instance;
-  final _db = FirebaseFirestore.instance;
+  final _db = FirebaseDatabase.instance.ref(); // ✅ RTDB root reference
 
   // Cloudinary details
   final String cloudName = "dij8c34qm"; // ✅ your cloud name
@@ -90,8 +90,8 @@ class AuthService {
         }
       }
 
-      // Save user in Firestore
-      await _db.collection('users').doc(result.user!.uid).set({
+      // ✅ Save user in Realtime Database
+      await _db.child("users").child(result.user!.uid).set({
         'uid': result.user!.uid,
         'email': email,
         'name': name,
@@ -114,10 +114,12 @@ class AuthService {
         password: password,
       );
 
-      final doc = await _db.collection('users').doc(result.user!.uid).get();
-      final data = doc.data();
+      // ✅ Fetch user from Realtime Database
+      final snapshot = await _db.child("users").child(result.user!.uid).get();
 
-      if (data == null) return null;
+      if (!snapshot.exists) return null;
+
+      final data = Map<String, dynamic>.from(snapshot.value as Map);
 
       if (data['role'] == 'doctor' && data['isVerified'] == false) {
         return null; // Doctor must be verified by admin

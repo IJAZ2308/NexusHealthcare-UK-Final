@@ -1,9 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
 class ChatListPage extends StatefulWidget {
-  const ChatListPage({super.key}); // ✅ use super.key
+  const ChatListPage({super.key});
 
   @override
   State<ChatListPage> createState() => _ChatListPageState();
@@ -11,28 +11,25 @@ class ChatListPage extends StatefulWidget {
 
 class _ChatListPageState extends State<ChatListPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final DatabaseReference _chatsRef = FirebaseDatabase.instance.ref().child(
+    'chats',
+  );
+  final DatabaseReference _doctorsRef = FirebaseDatabase.instance.ref().child(
+    'doctors',
+  );
 
   @override
   Widget build(BuildContext context) {
     final User? user = _auth.currentUser;
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text("Not logged in")),
-      );
+      return const Scaffold(body: Center(child: Text("Not logged in")));
     }
 
-    // ✅ Instead of unused variables, directly use them inside StreamBuilder
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Chats"),
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('chats')
-            .where('participants', arrayContains: user.uid)
-            .snapshots(),
+      appBar: AppBar(title: const Text("Chats")),
+      body: StreamBuilder<DatabaseEvent>(
+        stream: _chatsRef.onValue,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text("Something went wrong"));
@@ -41,43 +38,61 @@ class _ChatListPageState extends State<ChatListPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final chats = snapshot.data?.docs ?? [];
+          if (snapshot.data?.snapshot.value == null) {
+            return const Center(child: Text("No chats available"));
+          }
 
-          if (chats.isEmpty) {
+          final Map<dynamic, dynamic> chatsMap =
+              snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+
+          // Filter chats where user is a participant
+          final List<Map<dynamic, dynamic>> userChats = [];
+          chatsMap.forEach((key, value) {
+            final chat = Map<dynamic, dynamic>.from(value);
+            chat['id'] = key;
+            final participants = List<dynamic>.from(chat['participants'] ?? []);
+            if (participants.contains(user.uid)) {
+              userChats.add(chat);
+            }
+          });
+
+          if (userChats.isEmpty) {
             return const Center(child: Text("No chats available"));
           }
 
           return ListView.builder(
-            itemCount: chats.length,
+            itemCount: userChats.length,
             itemBuilder: (context, index) {
-              final chat = chats[index];
-              final List participants =
-                  chat['participants'] ?? []; // user + doctor
+              final chat = userChats[index];
+              final participants = List<dynamic>.from(
+                chat['participants'] ?? [],
+              );
+              final String doctorId = participants.firstWhere(
+                (id) => id != user.uid,
+              );
 
-              // Get doctor reference (avoids unused variable)
-              final String doctorId =
-                  participants.firstWhere((id) => id != user.uid);
-
-              return FutureBuilder<DocumentSnapshot>(
-                future: _firestore.collection('doctors').doc(doctorId).get(),
+              return FutureBuilder<DatabaseEvent>(
+                future: _doctorsRef.child(doctorId).once(),
                 builder: (context, doctorSnapshot) {
-                  if (!doctorSnapshot.hasData) {
+                  if (!doctorSnapshot.hasData ||
+                      doctorSnapshot.data?.snapshot.value == null) {
                     return const ListTile(title: Text("Loading..."));
                   }
 
-                  final doctorData =
-                      doctorSnapshot.data?.data() as Map<String, dynamic>?;
+                  final doctorData = Map<dynamic, dynamic>.from(
+                    doctorSnapshot.data!.snapshot.value as Map,
+                  );
 
                   return ListTile(
                     leading: const CircleAvatar(child: Icon(Icons.person)),
-                    title: Text(doctorData?['name'] ?? 'Unknown Doctor'),
+                    title: Text(doctorData['name'] ?? 'Unknown Doctor'),
                     subtitle: Text(chat['lastMessage'] ?? ''),
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => ChatDetailPage(
-                            chatId: chat.id,
+                            chatId: chat['id'],
                             doctorId: doctorId,
                           ),
                         ),
@@ -94,7 +109,7 @@ class _ChatListPageState extends State<ChatListPage> {
   }
 }
 
-class ChatDetailPage extends StatelessWidget {
+class ChatDetailPage extends StatefulWidget {
   final String chatId;
   final String doctorId;
 
@@ -105,13 +120,108 @@ class ChatDetailPage extends StatelessWidget {
   });
 
   @override
+  State<ChatDetailPage> createState() => _ChatDetailPageState();
+}
+
+class _ChatDetailPageState extends State<ChatDetailPage> {
+  final DatabaseReference _chatsRef = FirebaseDatabase.instance.ref().child(
+    'chats',
+  );
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final TextEditingController _messageController = TextEditingController();
+
+  void _sendMessage() {
+    final String uid = _auth.currentUser!.uid;
+    final message = _messageController.text.trim();
+    if (message.isEmpty) return;
+
+    final DatabaseReference messagesRef = _chatsRef
+        .child(widget.chatId)
+        .child('messages')
+        .push();
+    messagesRef.set({
+      'senderId': uid,
+      'text': message,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+
+    _chatsRef.child(widget.chatId).update({'lastMessage': message});
+    _messageController.clear();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final String uid = _auth.currentUser!.uid;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Chat with Doctor $doctorId"),
-      ),
-      body: const Center(
-        child: Text("Chat details here..."),
+      appBar: AppBar(title: Text("Chat with Doctor ${widget.doctorId}")),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<DatabaseEvent>(
+              stream: _chatsRef.child(widget.chatId).child('messages').onValue,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData ||
+                    snapshot.data!.snapshot.value == null) {
+                  return const Center(child: Text("No messages yet."));
+                }
+
+                final Map<dynamic, dynamic> messagesMap =
+                    snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                final messages =
+                    messagesMap.entries.map((e) {
+                      final msg = Map<dynamic, dynamic>.from(e.value);
+                      msg['id'] = e.key;
+                      return msg;
+                    }).toList()..sort(
+                      (a, b) => a['timestamp'].compareTo(b['timestamp']),
+                    );
+
+                return ListView.builder(
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = messages[index];
+                    final isMe = msg['senderId'] == uid;
+                    return ListTile(
+                      title: Align(
+                        alignment: isMe
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isMe ? Colors.green[200] : Colors.grey[300],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(msg['text']),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: const InputDecoration(
+                      hintText: "Type a message",
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: _sendMessage,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

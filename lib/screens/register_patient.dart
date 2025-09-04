@@ -1,7 +1,7 @@
 import 'package:dr_shahin_uk/screens/lib/screens/patient_dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class RegisterPatientScreen extends StatefulWidget {
   const RegisterPatientScreen({super.key});
@@ -25,21 +25,22 @@ class _RegisterPatientScreenState extends State<RegisterPatientScreen> {
     });
 
     try {
-      UserCredential userCred =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+      // ✅ Create user in Firebase Authentication
+      UserCredential userCred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text.trim(),
+          );
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCred.user!.uid)
-          .set({
-        'uid': userCred.user!.uid,
+      final uid = userCred.user!.uid;
+
+      // ✅ Save user in Realtime Database
+      await FirebaseDatabase.instance.ref("users/$uid").set({
+        'uid': uid,
         'email': _emailController.text.trim(),
         'name': _nameController.text.trim(),
         'role': 'patient',
-        'approved': true, // patients auto-approved
+        'isVerified': true, // patients auto-approved
       });
 
       if (!mounted) return;

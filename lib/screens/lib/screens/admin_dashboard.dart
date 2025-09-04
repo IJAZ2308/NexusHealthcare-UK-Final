@@ -1,16 +1,23 @@
 // lib/screens/admin_dashboard.dart
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class AdminDashboard extends StatelessWidget {
+class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
 
+  @override
+  State<AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends State<AdminDashboard> {
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+    'users',
+  );
+
   Future<void> _updateVerification(String uid, bool value) async {
-    await FirebaseFirestore.instance.collection('users').doc(uid).update({
-      'isVerified': value,
-    });
+    await _dbRef.child(uid).update({'isVerified': value});
   }
 
   Future<void> _openLicense(String url) async {
@@ -24,27 +31,31 @@ class AdminDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Admin Dashboard")),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .where('role', isEqualTo: 'doctor')
-            .snapshots(),
+      body: StreamBuilder<DatabaseEvent>(
+        stream: _dbRef.orderByChild('role').equalTo('doctor').onValue,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
             return const Center(child: Text("No doctors found"));
           }
 
-          final doctors = snapshot.data!.docs;
+          final Map<dynamic, dynamic> doctorsMap =
+              snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+          final List<Map<dynamic, dynamic>> doctors = doctorsMap.entries.map((
+            e,
+          ) {
+            final data = e.value as Map<dynamic, dynamic>;
+            data['uid'] = e.key;
+            return data;
+          }).toList();
 
           return ListView.builder(
             itemCount: doctors.length,
             itemBuilder: (context, index) {
-              final doc = doctors[index];
-              final data = doc.data() as Map<String, dynamic>;
+              final data = doctors[index];
 
               return Card(
                 margin: const EdgeInsets.all(10),
@@ -70,11 +81,12 @@ class AdminDashboard extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.check, color: Colors.green),
-                        onPressed: () => _updateVerification(doc.id, true),
+                        onPressed: () => _updateVerification(data['uid'], true),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.red),
-                        onPressed: () => _updateVerification(doc.id, false),
+                        onPressed: () =>
+                            _updateVerification(data['uid'], false),
                       ),
                     ],
                   ),

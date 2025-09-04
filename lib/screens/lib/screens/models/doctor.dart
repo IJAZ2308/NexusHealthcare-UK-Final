@@ -31,9 +31,12 @@ class Doctor {
     required this.totalReviews,
   });
 
-  /// ✅ Factory constructor for Firestore documents
-  factory Doctor.fromMap(Map<String, dynamic> map, String uid,
-      {required String id}) {
+  /// ✅ Factory constructor for Realtime Database snapshot
+  factory Doctor.fromMap(
+    Map<dynamic, dynamic> map,
+    String uid, {
+    required String id,
+  }) {
     return Doctor(
       uid: uid,
       category: map['category'] ?? '',
@@ -52,7 +55,7 @@ class Doctor {
     );
   }
 
-  /// Convert to Map for saving in Firestore
+  /// ✅ Convert to Map for saving in Realtime DB
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
