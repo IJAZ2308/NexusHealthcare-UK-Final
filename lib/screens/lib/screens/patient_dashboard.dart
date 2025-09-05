@@ -119,7 +119,7 @@ class PatientDashboard extends StatelessWidget {
                 _dashboardCard(
                   context,
                   icon: Icons.upload_file,
-                  title: "Upload Reports",
+                  title: "View Reports",
                   color: Colors.red,
                   onTap: () {
                     Navigator.push(
