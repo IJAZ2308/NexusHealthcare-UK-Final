@@ -38,9 +38,11 @@ class BedListScreen extends StatelessWidget {
 
               final name = hospital['name'] ?? 'Unknown';
               final imageUrl = hospital['imageUrl'];
-              final lat = hospital['latitude']?.toDouble() ?? 0.0;
-              final lng = hospital['longitude']?.toDouble() ?? 0.0;
+              final lat = (hospital['latitude'] as num?)?.toDouble() ?? 0.0;
+              final lng = (hospital['longitude'] as num?)?.toDouble() ?? 0.0;
               final availableBeds = hospital['availableBeds'] ?? 0;
+              final phone = hospital['phone'] ?? '';
+              final website = hospital['website'] ?? '';
 
               return Card(
                 margin: const EdgeInsets.all(10),
@@ -70,16 +72,17 @@ class BedListScreen extends StatelessWidget {
                           const SizedBox(height: 5),
                           Text("Available Beds: $availableBeds"),
                           const SizedBox(height: 10),
-                          Row(
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
                             children: [
                               ElevatedButton.icon(
                                 onPressed: () {
-                                  _openMap(lat, lng, name);
+                                  _openMap(lat, lng);
                                 },
                                 icon: const Icon(Icons.directions),
                                 label: const Text("Get Directions"),
                               ),
-                              const SizedBox(width: 10),
                               ElevatedButton.icon(
                                 onPressed: availableBeds > 0
                                     ? () {
@@ -92,6 +95,24 @@ class BedListScreen extends StatelessWidget {
                                     : null,
                                 icon: const Icon(Icons.local_hospital),
                                 label: const Text("Book Bed"),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: phone.isNotEmpty
+                                    ? () {
+                                        _callHospital(phone);
+                                      }
+                                    : null,
+                                icon: const Icon(Icons.phone),
+                                label: const Text("Call Hospital"),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: website.isNotEmpty
+                                    ? () {
+                                        _openWebsite(website);
+                                      }
+                                    : null,
+                                icon: const Icon(Icons.public),
+                                label: const Text("Visit Website"),
                               ),
                             ],
                           ),
@@ -108,14 +129,12 @@ class BedListScreen extends StatelessWidget {
     );
   }
 
-  void _openMap(double lat, double lng, String name) async {
+  void _openMap(double lat, double lng) async {
     final uri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
     );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
-    } else {
-      throw 'Could not open the map.';
     }
   }
 
@@ -170,5 +189,19 @@ class BedListScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _callHospital(String phone) async {
+    final uri = Uri(scheme: "tel", path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  void _openWebsite(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 }

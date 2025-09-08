@@ -1,10 +1,9 @@
 // lib/screens/register_doctor_screen.dart
-
 import 'dart:io';
-import 'package:dr_shahin_uk/screens/shared/verify_pending.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:dr_shahin_uk/main.dart'; // Import AuthService from main.dart
+import 'package:dr_shahin_uk/main.dart'; // AuthService
+import 'package:dr_shahin_uk/screens/shared/verify_pending.dart';
 
 class RegisterDoctorScreen extends StatefulWidget {
   const RegisterDoctorScreen({super.key});
@@ -14,22 +13,28 @@ class RegisterDoctorScreen extends StatefulWidget {
 }
 
 class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
-  final _authService = AuthService();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
+  final AuthService _authService = AuthService();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
 
   File? _licenseImage;
   String error = '';
   bool loading = false;
 
+  /// Pick license image from gallery
   Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      setState(() => _licenseImage = File(picked.path));
+    try {
+      final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (picked != null) {
+        setState(() => _licenseImage = File(picked.path));
+      }
+    } catch (e) {
+      setState(() => error = 'Failed to pick image: $e');
     }
   }
 
+  /// Register doctor with Firebase Auth + RTDB + Cloudinary
   Future<void> _registerDoctor() async {
     if (_licenseImage == null) {
       setState(() => error = "Please upload your license.");
@@ -41,7 +46,8 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       error = '';
     });
 
-    final success = await _authService.registerUser(
+    // Call AuthService.registerUser
+    final bool success = await _authService.registerUser(
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
       name: _nameController.text.trim(),
@@ -49,17 +55,20 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       licenseFile: _licenseImage,
     );
 
+    if (!mounted) return;
+
     if (success) {
-      if (!mounted) return;
+      // ✅ Registration success → show pending verification screen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const VerifyPending()),
       );
     } else {
-      setState(() => error = "Registration failed. Try again.");
+      // ❌ Registration failed → show error
+      setState(() => error = 'Registration failed. Please try again.');
     }
 
-    if (mounted) setState(() => loading = false);
+    setState(() => loading = false);
   }
 
   @override
@@ -74,6 +83,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
             children: [
               if (error.isNotEmpty)
                 Text(error, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 10),
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Full Name"),
@@ -82,6 +92,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: "Email"),
+                keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 10),
               TextField(
@@ -110,5 +121,13 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    super.dispose();
   }
 }

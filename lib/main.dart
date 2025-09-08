@@ -45,8 +45,9 @@ class DefaultFirebaseOptions {
 
 // ------------------------ AUTH SERVICE ------------------------
 class AuthService {
-  final _auth = FirebaseAuth.instance;
-  final _db = FirebaseDatabase.instance.ref(); // ✅ RTDB root reference
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final DatabaseReference _db = FirebaseDatabase.instance
+      .ref(); // ✅ RTDB root reference
 
   // Cloudinary details
   final String cloudName = "dij8c34qm"; // ✅ your cloud name
@@ -60,7 +61,7 @@ class AuthService {
     File? licenseFile,
   }) async {
     try {
-      final result = await _auth.createUserWithEmailAndPassword(
+      final UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -69,24 +70,30 @@ class AuthService {
 
       // Upload license only if doctor
       if (role == 'doctor' && licenseFile != null) {
-        final uploadUrl = Uri.parse(
+        final Uri uploadUrl = Uri.parse(
           "https://api.cloudinary.com/v1_1/$cloudName/auto/upload",
         );
 
-        final request = http.MultipartRequest("POST", uploadUrl)
-          ..fields['upload_preset'] = uploadPreset
-          ..files.add(
-            await http.MultipartFile.fromPath('file', licenseFile.path),
-          );
+        final http.MultipartRequest request =
+            http.MultipartRequest("POST", uploadUrl)
+              ..fields['upload_preset'] = uploadPreset
+              ..files.add(
+                await http.MultipartFile.fromPath('file', licenseFile.path),
+              );
 
-        final response = await request.send();
-        final responseData = await http.Response.fromStream(response);
-        final data = jsonDecode(responseData.body);
+        final http.StreamedResponse response = await request.send();
+        final http.Response responseData = await http.Response.fromStream(
+          response,
+        );
+        final Map<String, dynamic> data =
+            jsonDecode(responseData.body) as Map<String, dynamic>;
 
         if (response.statusCode == 200 && data['secure_url'] != null) {
-          licenseUrl = data['secure_url'];
+          licenseUrl = data['secure_url'] as String;
         } else {
-          throw Exception("Cloudinary upload failed: ${data['error']}");
+          throw Exception(
+            "Cloudinary upload failed: ${data['error'] ?? 'Unknown error'}",
+          );
         }
       }
 
@@ -109,23 +116,28 @@ class AuthService {
 
   Future<String?> login(String email, String password) async {
     try {
-      final result = await _auth.signInWithEmailAndPassword(
+      final UserCredential result = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       // ✅ Fetch user from Realtime Database
-      final snapshot = await _db.child("users").child(result.user!.uid).get();
+      final DataSnapshot snapshot = await _db
+          .child("users")
+          .child(result.user!.uid)
+          .get();
 
       if (!snapshot.exists) return null;
 
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
+      final Map<String, dynamic> data = Map<String, dynamic>.from(
+        snapshot.value as Map,
+      );
 
       if (data['role'] == 'doctor' && data['isVerified'] == false) {
         return null; // Doctor must be verified by admin
       }
 
-      return data['role'];
+      return data['role'] as String?;
     } catch (e) {
       developer.log("Login error", error: e);
       return null;
