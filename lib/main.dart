@@ -46,56 +46,60 @@ class DefaultFirebaseOptions {
 // ------------------------ AUTH SERVICE ------------------------
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final DatabaseReference _db = FirebaseDatabase.instance
-      .ref(); // ✅ RTDB root reference
+  final DatabaseReference _db = FirebaseDatabase.instance.ref();
 
   // Cloudinary details
   final String cloudName = "dij8c34qm"; // ✅ your cloud name
   final String uploadPreset = "medi360_unsigned"; // ✅ your unsigned preset
 
+  /// Upload license to Cloudinary (can be called from UI before register)
+  Future<String?> uploadLicense(File licenseFile) async {
+    try {
+      final Uri uploadUrl = Uri.parse(
+        "https://api.cloudinary.com/v1_1/$cloudName/auto/upload",
+      );
+
+      final http.MultipartRequest request =
+          http.MultipartRequest("POST", uploadUrl)
+            ..fields['upload_preset'] = uploadPreset
+            ..files.add(
+              await http.MultipartFile.fromPath('file', licenseFile.path),
+            );
+
+      final http.StreamedResponse response = await request.send();
+      final http.Response responseData = await http.Response.fromStream(
+        response,
+      );
+      final Map<String, dynamic> data =
+          jsonDecode(responseData.body) as Map<String, dynamic>;
+
+      if (response.statusCode == 200 && data['secure_url'] != null) {
+        return data['secure_url'] as String;
+      } else {
+        throw Exception(
+          "Cloudinary upload failed: ${data['error'] ?? 'Unknown error'}",
+        );
+      }
+    } catch (e) {
+      developer.log("Cloudinary upload error", error: e);
+      return null;
+    }
+  }
+
+  /// Register user (expects licenseUrl if doctor)
   Future<bool> registerUser({
     required String email,
     required String password,
     required String name,
     required String role,
-    File? licenseFile,
+    String? licenseUrl,
+    File? licenseFile, // ✅ now expects URL
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-
-      String? licenseUrl;
-
-      // Upload license only if doctor
-      if (role == 'doctor' && licenseFile != null) {
-        final Uri uploadUrl = Uri.parse(
-          "https://api.cloudinary.com/v1_1/$cloudName/auto/upload",
-        );
-
-        final http.MultipartRequest request =
-            http.MultipartRequest("POST", uploadUrl)
-              ..fields['upload_preset'] = uploadPreset
-              ..files.add(
-                await http.MultipartFile.fromPath('file', licenseFile.path),
-              );
-
-        final http.StreamedResponse response = await request.send();
-        final http.Response responseData = await http.Response.fromStream(
-          response,
-        );
-        final Map<String, dynamic> data =
-            jsonDecode(responseData.body) as Map<String, dynamic>;
-
-        if (response.statusCode == 200 && data['secure_url'] != null) {
-          licenseUrl = data['secure_url'] as String;
-        } else {
-          throw Exception(
-            "Cloudinary upload failed: ${data['error'] ?? 'Unknown error'}",
-          );
-        }
-      }
 
       // ✅ Save user in Realtime Database
       await _db.child("users").child(result.user!.uid).set({
@@ -108,6 +112,9 @@ class AuthService {
       });
 
       return true;
+    } on FirebaseAuthException catch (e) {
+      developer.log("FirebaseAuth error", error: e.message);
+      return false;
     } catch (e) {
       developer.log("Register error", error: e);
       return false;

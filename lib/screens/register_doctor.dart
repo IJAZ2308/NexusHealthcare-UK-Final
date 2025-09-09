@@ -46,25 +46,34 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       error = '';
     });
 
-    // Call AuthService.registerUser
+    // ✅ Step 1: Upload license to Cloudinary
+    final String? licenseUrl = await _authService.uploadLicense(_licenseImage!);
+
+    if (licenseUrl == null) {
+      setState(() {
+        loading = false;
+        error = "License upload failed. Please try again.";
+      });
+      return;
+    }
+
+    // ✅ Step 2: Register user with licenseUrl
     final bool success = await _authService.registerUser(
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
       name: _nameController.text.trim(),
       role: 'doctor',
-      licenseFile: _licenseImage,
+      licenseUrl: licenseUrl,
     );
 
     if (!mounted) return;
 
     if (success) {
-      // ✅ Registration success → show pending verification screen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const VerifyPending()),
       );
     } else {
-      // ❌ Registration failed → show error
       setState(() => error = 'Registration failed. Please try again.');
     }
 
