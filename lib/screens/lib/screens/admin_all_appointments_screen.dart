@@ -6,12 +6,12 @@ class AdminAllAppointmentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dbRef = FirebaseDatabase.instance.ref().child("appointments");
+    final dbRef = FirebaseDatabase.instance.ref();
 
     return Scaffold(
       appBar: AppBar(title: const Text("All Appointments")),
       body: StreamBuilder<DatabaseEvent>(
-        stream: dbRef.onValue,
+        stream: dbRef.child("appointments").onValue,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -21,31 +21,73 @@ class AdminAllAppointmentsScreen extends StatelessWidget {
             return const Center(child: Text("No appointments found"));
           }
 
-          // Convert Realtime Database map into list
+          // Convert appointments map into a list
           final Map<dynamic, dynamic> data =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
 
-          final appointments = data.entries.toList();
+          final appointments = data.entries.map((entry) {
+            final Map<String, dynamic> appointment = Map<String, dynamic>.from(
+              entry.value,
+            );
+            appointment['id'] = entry.key;
+            return appointment;
+          }).toList();
 
-          return ListView.builder(
-            itemCount: appointments.length,
-            itemBuilder: (context, index) {
-              final appointment = appointments[index].value as Map;
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: ListTile(
-                  title: Text("Doctor: ${appointment['doctorId'] ?? ''}"),
-                  subtitle: Text(
-                    "Patient: ${appointment['patientId'] ?? ''}\n"
-                    "Date: ${appointment['date'] ?? ''}  "
-                    "Time: ${appointment['time'] ?? ''}\n"
-                    "Reason: ${appointment['reason'] ?? ''}",
-                  ),
-                  trailing: Text(
-                    appointment['status'] ?? 'pending',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
+          // Fetch doctors, patients, hospitals in a FutureBuilder
+          return FutureBuilder<DataSnapshot>(
+            future: dbRef.get(), // one-time read of full database
+            builder: (context, futureSnapshot) {
+              if (!futureSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final dbData =
+                  futureSnapshot.data!.value as Map<dynamic, dynamic>;
+
+              final doctors = Map<String, dynamic>.from(
+                dbData['doctors'] ?? {},
+              );
+              final patients = Map<String, dynamic>.from(
+                dbData['patients'] ?? {},
+              );
+              final hospitals = Map<String, dynamic>.from(
+                dbData['hospitals'] ?? {},
+              );
+
+              return ListView.builder(
+                itemCount: appointments.length,
+                itemBuilder: (context, index) {
+                  final appt = appointments[index];
+
+                  final doctorName =
+                      doctors[appt['doctorId']]?['name'] ?? "Unknown Doctor";
+                  final patientName =
+                      patients[appt['patientId']]?['name'] ?? "Unknown Patient";
+                  final hospitalName =
+                      hospitals[appt['hospitalId']]?['name'] ??
+                      "Unknown Hospital";
+
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    child: ListTile(
+                      title: Text("Doctor: $doctorName"),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Patient: $patientName"),
+                          Text("Hospital: $hospitalName"),
+                          Text("Date: ${appt['date']}  Time: ${appt['time']}"),
+                          Text("Reason: ${appt['reason'] ?? 'N/A'}"),
+                          Text("Status: ${appt['status']}"),
+                        ],
+                      ),
+                      isThreeLine: true,
+                    ),
+                  );
+                },
               );
             },
           );
