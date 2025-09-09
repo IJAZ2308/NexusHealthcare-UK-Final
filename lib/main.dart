@@ -44,19 +44,20 @@ class DefaultFirebaseOptions {
 }
 
 // ------------------------ AUTH SERVICE ------------------------
+// ------------------------ AUTH SERVICE ------------------------
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _db = FirebaseDatabase.instance.ref();
 
   // Cloudinary details
-  final String cloudName = "dij8c34qm"; // ✅ your cloud name
+  final String cloudName = "dij8c34qm"; // ✅ hardcoded cloud name
   final String uploadPreset = "medi360_unsigned"; // ✅ your unsigned preset
 
-  /// Upload license to Cloudinary (can be called from UI before register)
+  /// Upload license to Cloudinary
   Future<String?> uploadLicense(File licenseFile) async {
     try {
       final Uri uploadUrl = Uri.parse(
-        "https://api.cloudinary.com/v1_1/$cloudName/auto/upload",
+        "https://api.cloudinary.com/v1_1/dij8c34qm/auto/upload", // ✅ hardcoded
       );
 
       final http.MultipartRequest request =
@@ -70,6 +71,9 @@ class AuthService {
       final http.Response responseData = await http.Response.fromStream(
         response,
       );
+
+      developer.log("Cloudinary response: ${responseData.body}");
+
       final Map<String, dynamic> data =
           jsonDecode(responseData.body) as Map<String, dynamic>;
 
@@ -77,7 +81,7 @@ class AuthService {
         return data['secure_url'] as String;
       } else {
         throw Exception(
-          "Cloudinary upload failed: ${data['error'] ?? 'Unknown error'}",
+          "Cloudinary upload failed: ${data['error'] ?? responseData.body}",
         );
       }
     } catch (e) {
@@ -86,14 +90,14 @@ class AuthService {
     }
   }
 
-  /// Register user (expects licenseUrl if doctor)
+  /// Register user (saves licenseUrl if doctor)
   Future<bool> registerUser({
     required String email,
     required String password,
     required String name,
     required String role,
     String? licenseUrl,
-    File? licenseFile, // ✅ now expects URL
+    File? licenseFile,
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
@@ -101,7 +105,6 @@ class AuthService {
         password: password,
       );
 
-      // ✅ Save user in Realtime Database
       await _db.child("users").child(result.user!.uid).set({
         'uid': result.user!.uid,
         'email': email,
@@ -121,6 +124,7 @@ class AuthService {
     }
   }
 
+  /// Login
   Future<String?> login(String email, String password) async {
     try {
       final UserCredential result = await _auth.signInWithEmailAndPassword(
@@ -128,7 +132,6 @@ class AuthService {
         password: password,
       );
 
-      // ✅ Fetch user from Realtime Database
       final DataSnapshot snapshot = await _db
           .child("users")
           .child(result.user!.uid)
