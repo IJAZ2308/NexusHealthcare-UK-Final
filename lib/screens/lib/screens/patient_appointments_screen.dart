@@ -1,107 +1,108 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:intl/intl.dart';
 
-class BookAppointmentScreen extends StatefulWidget {
-  final String doctorId;
-  final String doctorName;
-  final String specialization;
-
-  const BookAppointmentScreen({
-    super.key,
-    required this.doctorId,
-    required this.doctorName,
-    required this.specialization,
-  });
+class PatientAppointmentsScreen extends StatefulWidget {
+  const PatientAppointmentsScreen({super.key});
 
   @override
-  State<BookAppointmentScreen> createState() => _BookAppointmentScreenState();
+  State<PatientAppointmentsScreen> createState() =>
+      _PatientAppointmentsScreenState();
 }
 
-class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _dateController = TextEditingController();
-  final TextEditingController _timeController = TextEditingController();
-  final TextEditingController _reasonController = TextEditingController();
+class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
+  Map<String, dynamic> doctors = {};
 
-  bool _loading = false;
+  @override
+  void initState() {
+    super.initState();
+    _loadDoctors();
+  }
 
-  Future<void> _bookAppointment() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _loading = true);
-
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final dbRef = FirebaseDatabase.instance.ref().child("appointments");
-
-    final newAppointmentRef = dbRef.push();
-
-    await newAppointmentRef.set({
-      "patientId": uid,
-      "doctorId": widget.doctorId,
-      "doctorName": widget.doctorName,
-      "specialization": widget.specialization,
-      "date": _dateController.text,
-      "time": _timeController.text,
-      "reason": _reasonController.text,
-      "status": "pending",
-    });
-
-    setState(() => _loading = false);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Appointment booked successfully!")),
+  /// Load all doctors into a map for quick lookup
+  Future<void> _loadDoctors() async {
+    final dbRef = FirebaseDatabase.instance.ref().child("doctors");
+    final snapshot = await dbRef.get();
+    if (snapshot.exists && snapshot.value != null) {
+      final fetchedDoctors = Map<String, dynamic>.from(
+        snapshot.value as Map<dynamic, dynamic>,
       );
-      Navigator.pop(context);
+      if (mounted) {
+        setState(() {
+          doctors = fetchedDoctors;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser!;
+    final dbRef = FirebaseDatabase.instance.ref().child("appointments");
+
     return Scaffold(
-      appBar: AppBar(title: Text("Book with ${widget.doctorName}")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Text("Specialization: ${widget.specialization}"),
-              const SizedBox(height: 16),
+      appBar: AppBar(title: const Text("My Appointments")),
+      body: StreamBuilder<DatabaseEvent>(
+        stream: dbRef.orderByChild("patientId").equalTo(user.uid).onValue,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-              TextFormField(
-                controller: _dateController,
-                decoration: const InputDecoration(
-                  labelText: "Date (YYYY-MM-DD)",
-                ),
-                validator: (value) => value!.isEmpty ? "Enter a date" : null,
-              ),
-              TextFormField(
-                controller: _timeController,
-                decoration: const InputDecoration(
-                  labelText: "Time (e.g., 10:30 AM)",
-                ),
-                validator: (value) => value!.isEmpty ? "Enter a time" : null,
-              ),
-              TextFormField(
-                controller: _reasonController,
-                decoration: const InputDecoration(
-                  labelText: "Reason for visit",
-                ),
-                validator: (value) => value!.isEmpty ? "Enter a reason" : null,
-              ),
+          final snapshotValue = snapshot.data!.snapshot.value;
 
-              const SizedBox(height: 24),
-              _loading
-                  ? const CircularProgressIndicator()
-                  : ElevatedButton(
-                      onPressed: _bookAppointment,
-                      child: const Text("Book Appointment"),
-                    ),
-            ],
-          ),
-        ),
+          if (snapshotValue == null) {
+            return const Center(child: Text("No appointments booked"));
+          }
+
+          // Convert snapshot to a list
+          final appointmentsList = <Map<String, dynamic>>[];
+          (snapshotValue as Map<dynamic, dynamic>).forEach((key, value) {
+            final data = Map<String, dynamic>.from(value as Map);
+            final doctorId = data['doctorId'] ?? "";
+            final doctorInfo = doctors[doctorId] ?? {};
+            final doctorName =
+                "${doctorInfo['firstName'] ?? ''} ${doctorInfo['lastName'] ?? ''}"
+                    .trim();
+            final doctorCategory = doctorInfo['category'] ?? "";
+
+            appointmentsList.add({
+              "id": key,
+              "doctorName": doctorName.isEmpty ? "Unknown" : doctorName,
+              "doctorCategory": doctorCategory,
+              "dateTime":
+                  DateTime.tryParse(data['dateTime'] ?? '') ?? DateTime.now(),
+              "reason": data['reason'] ?? "",
+            });
+          });
+
+          // Sort appointments by dateTime
+          appointmentsList.sort(
+            (a, b) => a['dateTime'].compareTo(b['dateTime']),
+          );
+
+          return ListView.builder(
+            itemCount: appointmentsList.length,
+            itemBuilder: (context, index) {
+              final appt = appointmentsList[index];
+              final formattedDate = DateFormat(
+                'EEE, dd MMM yyyy – hh:mm a',
+              ).format(appt['dateTime']);
+
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.calendar_today, color: Colors.blue),
+                  title: Text("${appt['doctorName']}"),
+                  subtitle: Text(
+                    "Category: ${appt['doctorCategory']}\nDate: $formattedDate\nReason: ${appt['reason']}",
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

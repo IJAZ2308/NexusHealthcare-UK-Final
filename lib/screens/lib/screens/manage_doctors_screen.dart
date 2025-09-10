@@ -15,12 +15,24 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
     'doctors',
   );
 
-  Future<void> _updateVerification(String doctorId, bool value) async {
-    await _dbRef.child(doctorId).update({'verified': value});
+  Future<void> _updateStatus(String doctorId, String status) async {
+    await _dbRef.child(doctorId).update({'status': status});
+
+    if (!mounted) return; // ✅ prevents context error
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text("Doctor status updated to $status")));
   }
 
   Future<void> _deleteDoctor(String doctorId) async {
     await _dbRef.child(doctorId).remove();
+
+    if (!mounted) return; // ✅ prevents context error
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Doctor deleted")));
   }
 
   Future<void> _openUrl(String url) async {
@@ -43,6 +55,7 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
 
           final Map<dynamic, dynamic> doctorsMap =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+
           final List<Map<dynamic, dynamic>> doctors = doctorsMap.entries.map((
             e,
           ) {
@@ -58,13 +71,13 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
-                  title: Text(data['name']),
+                  title: Text(data['name'] ?? 'Unknown'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Email: ${data['email']}"),
-                      Text("Specialty: ${data['specialty']}"),
-                      Text("Verified: ${data['verified']}"),
+                      Text("Email: ${data['email'] ?? ''}"),
+                      Text("Specialty: ${data['specialty'] ?? ''}"),
+                      Text("Status: ${data['status'] ?? 'pending'}"),
                       if ((data['licenseUrl'] ?? '').isNotEmpty)
                         TextButton(
                           onPressed: () => _openUrl(data['licenseUrl']),
@@ -81,15 +94,15 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
                       IconButton(
                         icon: const Icon(Icons.check, color: Colors.green),
                         onPressed: () =>
-                            _updateVerification(data['doctorId'], true),
+                            _updateStatus(data['doctorId'], "approved"),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close, color: Colors.red),
+                        icon: const Icon(Icons.close, color: Colors.orange),
                         onPressed: () =>
-                            _updateVerification(data['doctorId'], false),
+                            _updateStatus(data['doctorId'], "rejected"),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.grey),
+                        icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () => _deleteDoctor(data['doctorId']),
                       ),
                     ],

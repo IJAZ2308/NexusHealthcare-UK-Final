@@ -9,7 +9,7 @@ class AdminAllAppointmentsScreen extends StatelessWidget {
     final dbRef = FirebaseDatabase.instance.ref();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("All Appointments")),
+      appBar: AppBar(title: const Text("All Appointments & Bed Status")),
       body: StreamBuilder<DatabaseEvent>(
         stream: dbRef.child("appointments").onValue,
         builder: (context, snapshot) {
@@ -31,11 +31,11 @@ class AdminAllAppointmentsScreen extends StatelessWidget {
             );
             appointment['id'] = entry.key;
             return appointment;
-          }).toList();
+          });
 
-          // Fetch doctors, patients, hospitals in a FutureBuilder
           return FutureBuilder<DataSnapshot>(
-            future: dbRef.get(), // one-time read of full database
+            future: dbRef
+                .get(), // one-time read for doctors, patients, hospitals
             builder: (context, futureSnapshot) {
               if (!futureSnapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
@@ -54,40 +54,112 @@ class AdminAllAppointmentsScreen extends StatelessWidget {
                 dbData['hospitals'] ?? {},
               );
 
-              return ListView.builder(
-                itemCount: appointments.length,
-                itemBuilder: (context, index) {
-                  final appt = appointments[index];
+              // Group appointments by doctorId
+              final Map<String, List<Map<String, dynamic>>> groupedByDoctor =
+                  {};
+              for (var appt in appointments) {
+                final doctorId = appt['doctorId'] ?? 'unknown';
+                if (!groupedByDoctor.containsKey(doctorId)) {
+                  groupedByDoctor[doctorId] = [];
+                }
+                groupedByDoctor[doctorId]!.add(appt);
+              }
 
-                  final doctorName =
-                      doctors[appt['doctorId']]?['name'] ?? "Unknown Doctor";
-                  final patientName =
-                      patients[appt['patientId']]?['name'] ?? "Unknown Patient";
-                  final hospitalName =
-                      hospitals[appt['hospitalId']]?['name'] ??
-                      "Unknown Hospital";
+              return ListView(
+                children: [
+                  // Bed availability section
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Hospital Bed Status",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...hospitals.entries.map((entry) {
+                          final hospital = Map<String, dynamic>.from(
+                            entry.value,
+                          );
+                          final name = hospital['name'] ?? 'Unknown Hospital';
+                          final totalBeds = hospital['totalBeds'] ?? 0;
+                          final occupiedBeds = hospital['occupiedBeds'] ?? 0;
+                          final availableBeds = totalBeds - occupiedBeds;
 
-                  return Card(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                          return Card(
+                            color: availableBeds <= 0
+                                ? Colors.red[100]
+                                : Colors.lightBlue[50],
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            child: ListTile(
+                              title: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                "Total Beds: $totalBeds\nOccupied Beds: $occupiedBeds\nAvailable Beds: $availableBeds",
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
                     ),
-                    child: ListTile(
-                      title: Text("Doctor: $doctorName"),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("Patient: $patientName"),
-                          Text("Hospital: $hospitalName"),
-                          Text("Date: ${appt['date']}  Time: ${appt['time']}"),
-                          Text("Reason: ${appt['reason'] ?? 'N/A'}"),
-                          Text("Status: ${appt['status']}"),
-                        ],
+                  ),
+
+                  const Divider(thickness: 2),
+
+                  // Appointments grouped by doctor
+                  ...groupedByDoctor.entries.map((entry) {
+                    final doctorId = entry.key;
+                    final doctorName =
+                        doctors[doctorId]?['name'] ?? "Unknown Doctor";
+                    final doctorAppointments = entry.value;
+
+                    return ExpansionTile(
+                      title: Text(
+                        "Doctor: $doctorName (${doctorAppointments.length})",
                       ),
-                      isThreeLine: true,
-                    ),
-                  );
-                },
+                      children: [
+                        ...doctorAppointments.map((appt) {
+                          final patientName =
+                              patients[appt['patientId']]?['name'] ??
+                              "Unknown Patient";
+                          final hospitalName =
+                              hospitals[appt['hospitalId']]?['name'] ??
+                              "Unknown Hospital";
+
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            child: ListTile(
+                              title: Text("Patient: $patientName"),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text("Hospital: $hospitalName"),
+                                  Text(
+                                    "Date: ${appt['date']}  Time: ${appt['time']}",
+                                  ),
+                                  Text("Reason: ${appt['reason'] ?? 'N/A'}"),
+                                  Text("Status: ${appt['status']}"),
+                                ],
+                              ),
+                              isThreeLine: true,
+                            ),
+                          );
+                        }),
+                      ],
+                    );
+                  }),
+                ],
               );
             },
           );

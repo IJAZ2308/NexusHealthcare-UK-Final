@@ -8,7 +8,7 @@ class Doctor {
   final String profileImageUrl;
   final String qualification;
   final String phoneNumber;
-  final String yearsOfExperience;
+  final int yearsOfExperience; // changed to int
   final double latitude;
   final double longitude;
   final int numberOfReviews;
@@ -31,7 +31,7 @@ class Doctor {
     required this.totalReviews,
   });
 
-  /// ✅ Factory constructor for Realtime Database snapshot
+  /// Factory constructor for Realtime Database snapshot
   factory Doctor.fromMap(
     Map<dynamic, dynamic> map,
     String uid, {
@@ -47,7 +47,8 @@ class Doctor {
       profileImageUrl: map['profileImageUrl'] ?? '',
       qualification: map['qualification'] ?? '',
       phoneNumber: map['phoneNumber'] ?? '',
-      yearsOfExperience: map['yearsOfExperience']?.toString() ?? '0',
+      yearsOfExperience:
+          int.tryParse(map['yearsOfExperience']?.toString() ?? '0') ?? 0,
       latitude: (map['latitude'] ?? 0).toDouble(),
       longitude: (map['longitude'] ?? 0).toDouble(),
       numberOfReviews: map['numberOfReviews'] ?? 0,
@@ -55,7 +56,7 @@ class Doctor {
     );
   }
 
-  /// ✅ Convert to Map for saving in Realtime DB
+  /// Convert to Map for saving in Realtime DB
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
