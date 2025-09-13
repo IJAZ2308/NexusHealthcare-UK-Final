@@ -37,7 +37,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // 1️⃣ Sign in user
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password.trim(),
@@ -49,7 +48,6 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // 2️⃣ Get user data from Realtime Database
       final snapshot = await _db.child("users").child(uid).get();
 
       if (!snapshot.exists) {
@@ -64,7 +62,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // 3️⃣ Navigate based on role & verification
       if (role == 'doctor' && !verified) {
         Navigator.pushReplacement(
           context,
@@ -95,7 +92,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // 🔹 Forgot Password Method
   Future<void> _resetPassword() async {
     if (email.isEmpty) {
       setState(() {
@@ -126,160 +122,157 @@ class _LoginScreenState extends State<LoginScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
+        backgroundColor: const Color(0xffF8F2FF), // 🔹 lavender background
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : Form(
-                key: _formKey,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+            : SafeArea(
+                child: Center(
                   child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 48),
-                        Image.asset('assets/images/plus.png'),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Welcome!',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Text(
-                          'Login first',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                        const SizedBox(height: 40),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // 🔹 Logo
+                          Image.asset('assets/images/login1.png', height: 120),
+                          const SizedBox(height: 20),
 
-                        if (error.isNotEmpty)
-                          Text(
-                            error,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-
-                        // Email Field
-                        SizedBox(
-                          height: 50,
-                          child: TextFormField(
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                          // 🔹 Welcome text
+                          const Text(
+                            'Welcome!',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w600,
                             ),
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: const Color(0xffF0EFFF),
-                              labelText: 'Email',
-                              labelStyle: TextStyle(
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 5),
+                          const Text(
+                            'Login first',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.black54,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 30),
+
+                          if (error.isNotEmpty)
+                            Text(
+                              error,
+                              style: const TextStyle(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            ),
+
+                          // 🔹 Email Field
+                          SizedBox(
+                            height: 50,
+                            child: TextFormField(
+                              style: const TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey.shade400,
+                                fontWeight: FontWeight.w500,
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10.0),
-                              ),
-                            ),
-                            keyboardType: TextInputType.emailAddress,
-                            onChanged: (val) => email = val,
-                            validator: (val) =>
-                                val!.isEmpty ? 'Enter an email' : null,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Password Field
-                        SizedBox(
-                          height: 50,
-                          child: TextFormField(
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: const Color(0xffF0EFFF),
-                              labelText: 'Password',
-                              labelStyle: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10.0),
-                              ),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscureText
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                  color: Colors.grey.shade400,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: const Color(0xffF0EFFF),
+                                labelText: 'Email',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10.0),
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscureText = !_obscureText;
-                                  });
-                                },
                               ),
-                            ),
-                            obscureText: _obscureText,
-                            onChanged: (val) => password = val,
-                            validator: (val) => val!.length < 6
-                                ? 'Password must be at least 6 characters'
-                                : null,
-                          ),
-                        ),
-
-                        // 🔹 Forgot Password Button
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _resetPassword,
-                            child: const Text(
-                              "Forgot Password?",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.blue,
-                                fontWeight: FontWeight.w400,
-                              ),
+                              keyboardType: TextInputType.emailAddress,
+                              onChanged: (val) => email = val,
+                              validator: (val) =>
+                                  val!.isEmpty ? 'Enter an email' : null,
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 10),
 
-                        const SizedBox(height: 20),
-
-                        // Login Button
-                        SizedBox(
-                          width: MediaQuery.of(context).size.width,
-                          child: ElevatedButton(
-                            onPressed: _login,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xff0064FA),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10.0),
+                          // 🔹 Password Field
+                          SizedBox(
+                            height: 50,
+                            child: TextFormField(
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: const Color(0xffF0EFFF),
+                                labelText: 'Password',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10.0),
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscureText
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscureText = !_obscureText;
+                                    });
+                                  },
+                                ),
                               ),
+                              obscureText: _obscureText,
+                              onChanged: (val) => password = val,
+                              validator: (val) => val!.length < 6
+                                  ? 'Password must be at least 6 characters'
+                                  : null,
                             ),
-                            child: const Text(
-                              'Login',
-                              style: TextStyle(
-                                fontSize: 17,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.4,
+                          ),
+
+                          // 🔹 Forgot Password
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _resetPassword,
+                              child: const Text(
+                                "Forgot Password?",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w400,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
+                          const SizedBox(height: 10),
 
-                        // Register Link
-                        SizedBox(
-                          width: MediaQuery.of(context).size.width,
-                          child: TextButton(
+                          // 🔹 Login Button
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _login,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xff0064FA),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10.0),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                              ),
+                              child: const Text(
+                                'Login',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // 🔹 Register Link
+                          TextButton(
                             onPressed: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
@@ -296,8 +289,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
