@@ -1,6 +1,8 @@
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_details_page.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/models/doctor.dart';
 import 'package:intl/intl.dart';
 
 class PatientAppointmentsScreen extends StatefulWidget {
@@ -12,97 +14,150 @@ class PatientAppointmentsScreen extends StatefulWidget {
 }
 
 class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
-  Map<String, dynamic> doctors = {};
+  final DatabaseReference _appointmentDB = FirebaseDatabase.instance
+      .ref()
+      .child('appointments');
+
+  List<Map<String, dynamic>> _appointments = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadDoctors();
+    _fetchAppointments();
   }
 
-  /// Load all doctors into a map for quick lookup
-  Future<void> _loadDoctors() async {
-    final dbRef = FirebaseDatabase.instance.ref().child("doctors");
-    final snapshot = await dbRef.get();
-    if (snapshot.exists && snapshot.value != null) {
-      final fetchedDoctors = Map<String, dynamic>.from(
-        snapshot.value as Map<dynamic, dynamic>,
-      );
-      if (mounted) {
-        setState(() {
-          doctors = fetchedDoctors;
+  // Fetch all appointments from Firebase
+  Future<void> _fetchAppointments() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    final snapshot = await _appointmentDB.once();
+    final data = snapshot.snapshot.value;
+
+    List<Map<String, dynamic>> tmp = [];
+    if (data != null) {
+      final map = data as Map<dynamic, dynamic>;
+      map.forEach((key, value) {
+        tmp.add({
+          'id': key,
+          'doctorId': value['doctorId'] ?? '',
+          'doctorName': value['doctorName'] ?? '',
+          'specialization': value['specialization'] ?? '',
+          'timestamp': value['dateTime'] ?? '',
+          'status': value['status'] ?? 'pending',
+          'cancelReason': value['cancelReason'] ?? '',
         });
-      }
+      });
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _appointments = tmp;
+      _isLoading = false;
+    });
+  }
+
+  // Cancel an existing appointment (patient cancels their own)
+  Future<void> _cancelAppointment(String appointmentId) async {
+    try {
+      await _appointmentDB.child(appointmentId).update({
+        'status': 'cancelled',
+        'cancelReason': 'Cancelled by patient',
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Appointment cancelled successfully!")),
+      );
+
+      await _fetchAppointments();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error cancelling appointment: $e")),
+      );
+    }
+  }
+
+  // Navigate to doctor list to book a new appointment
+  Future<void> _bookNewAppointment() async {
+    final Doctor? selectedDoctor = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const DoctorListPage()),
+    );
+
+    if (selectedDoctor != null && mounted) {
+      // Open doctor details page to select date/time and confirm booking
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DoctorDetailPage(doctor: selectedDoctor),
+        ),
+      );
+
+      if (!mounted) return;
+      await _fetchAppointments();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser!;
-    final dbRef = FirebaseDatabase.instance.ref().child("appointments");
-
     return Scaffold(
       appBar: AppBar(title: const Text("My Appointments")),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: dbRef.orderByChild("patientId").equalTo(user.uid).onValue,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _appointments.isEmpty
+          ? const Center(child: Text("No appointments yet."))
+          : ListView.builder(
+              itemCount: _appointments.length,
+              itemBuilder: (context, index) {
+                final appt = _appointments[index];
 
-          final snapshotValue = snapshot.data!.snapshot.value;
+                final dateTimeObj = DateTime.tryParse(appt['timestamp'] ?? '');
+                final formattedDate = dateTimeObj != null
+                    ? DateFormat(
+                        'EEE, dd MMM yyyy – hh:mm a',
+                      ).format(dateTimeObj.toLocal())
+                    : 'Unknown date';
 
-          if (snapshotValue == null) {
-            return const Center(child: Text("No appointments booked"));
-          }
-
-          // Convert snapshot to a list
-          final appointmentsList = <Map<String, dynamic>>[];
-          (snapshotValue as Map<dynamic, dynamic>).forEach((key, value) {
-            final data = Map<String, dynamic>.from(value as Map);
-            final doctorId = data['doctorId'] ?? "";
-            final doctorInfo = doctors[doctorId] ?? {};
-            final doctorName =
-                "${doctorInfo['firstName'] ?? ''} ${doctorInfo['lastName'] ?? ''}"
-                    .trim();
-            final doctorCategory = doctorInfo['category'] ?? "";
-
-            appointmentsList.add({
-              "id": key,
-              "doctorName": doctorName.isEmpty ? "Unknown" : doctorName,
-              "doctorCategory": doctorCategory,
-              "dateTime":
-                  DateTime.tryParse(data['dateTime'] ?? '') ?? DateTime.now(),
-              "reason": data['reason'] ?? "",
-            });
-          });
-
-          // Sort appointments by dateTime
-          appointmentsList.sort(
-            (a, b) => a['dateTime'].compareTo(b['dateTime']),
-          );
-
-          return ListView.builder(
-            itemCount: appointmentsList.length,
-            itemBuilder: (context, index) {
-              final appt = appointmentsList[index];
-              final formattedDate = DateFormat(
-                'EEE, dd MMM yyyy – hh:mm a',
-              ).format(appt['dateTime']);
-
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.calendar_today, color: Colors.blue),
-                  title: Text("${appt['doctorName']}"),
-                  subtitle: Text(
-                    "Category: ${appt['doctorCategory']}\nDate: $formattedDate\nReason: ${appt['reason']}",
+                return Card(
+                  margin: const EdgeInsets.all(8),
+                  child: ListTile(
+                    title: Text(appt['doctorName']),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(appt['specialization']),
+                        const SizedBox(height: 4),
+                        Text("Date: $formattedDate"),
+                        Text("Status: ${appt['status']}"),
+                        if (appt['status'] == 'cancelled' &&
+                            appt['cancelReason'].isNotEmpty)
+                          Text(
+                            "Reason: ${appt['cancelReason']}",
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                      ],
+                    ),
+                    trailing: appt['status'] == 'cancelled'
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.cancel, color: Colors.red),
+                            onPressed: () {
+                              _cancelAppointment(appt['id']);
+                            },
+                          ),
                   ),
-                ),
-              );
-            },
-          );
-        },
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _bookNewAppointment,
+        icon: const Icon(Icons.add),
+        label: const Text("Book Appointment"),
       ),
     );
   }

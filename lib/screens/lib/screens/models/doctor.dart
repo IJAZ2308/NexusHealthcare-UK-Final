@@ -8,7 +8,7 @@ class Doctor {
   final String profileImageUrl;
   final String qualification;
   final String phoneNumber;
-  final int yearsOfExperience; // changed to int
+  final int yearsOfExperience;
   final double latitude;
   final double longitude;
   final int numberOfReviews;
@@ -32,11 +32,7 @@ class Doctor {
   });
 
   /// Factory constructor for Realtime Database snapshot
-  factory Doctor.fromMap(
-    Map<dynamic, dynamic> map,
-    String uid, {
-    required String id,
-  }) {
+  factory Doctor.fromMap(Map<dynamic, dynamic> map, String uid, {required id}) {
     return Doctor(
       uid: uid,
       category: map['category'] ?? '',
@@ -81,4 +77,7 @@ class Doctor {
 
   /// Specialization alias
   String get specialization => category;
+
+  /// Remove the old unused getter
+  // Removed `get specialty => null;`
 }

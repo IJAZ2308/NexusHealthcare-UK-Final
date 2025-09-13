@@ -1,10 +1,10 @@
 class Appointment {
-  final String id;
-  final String patientId;
-  final String doctorId;
+  final String id; // Firebase document ID / key
+  final String patientId; // Reference to patient UID
+  final String doctorId; // Reference to doctor UID
   final DateTime dateTime; // Combined date & time
-  final String reason;
-  final String status;
+  final String reason; // Reason for appointment
+  final String status; // pending / approved / rejected / completed
 
   Appointment({
     required this.id,
@@ -20,7 +20,7 @@ class Appointment {
     return {
       'patientId': patientId,
       'doctorId': doctorId,
-      'dateTime': dateTime.millisecondsSinceEpoch,
+      'dateTime': dateTime.millisecondsSinceEpoch, // Store as timestamp
       'reason': reason,
       'status': status,
     };
@@ -30,13 +30,28 @@ class Appointment {
   factory Appointment.fromMap(String id, Map<dynamic, dynamic> map) {
     return Appointment(
       id: id,
-      patientId: map['patientId'] ?? '',
-      doctorId: map['doctorId'] ?? '',
+      patientId: map['patientId']?.toString() ?? '',
+      doctorId: map['doctorId']?.toString() ?? '',
       dateTime: map['dateTime'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['dateTime'])
           : DateTime.now(),
-      reason: map['reason'] ?? '',
-      status: map['status'] ?? 'pending',
+      reason: map['reason']?.toString() ?? '',
+      status: map['status']?.toString() ?? 'pending',
     );
   }
+
+  /// Create an Appointment from JSON
+  factory Appointment.fromJson(Map<String, dynamic> json, String id) {
+    return Appointment(
+      id: id,
+      patientId: json['patientId'] ?? '',
+      doctorId: json['doctorId'] ?? '',
+      dateTime: DateTime.fromMillisecondsSinceEpoch(json['dateTime']),
+      reason: json['reason'] ?? '',
+      status: json['status'] ?? 'pending',
+    );
+  }
+
+  /// Convert Appointment to JSON
+  Map<String, dynamic> toJson() => toMap();
 }

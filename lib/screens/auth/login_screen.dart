@@ -95,6 +95,32 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // 🔹 Forgot Password Method
+  Future<void> _resetPassword() async {
+    if (email.isEmpty) {
+      setState(() {
+        error = "Please enter your email above first.";
+      });
+      return;
+    }
+
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Password reset email sent! Check your inbox."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        error = e.message ?? "Failed to send reset email.";
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -203,6 +229,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : null,
                           ),
                         ),
+
+                        // 🔹 Forgot Password Button
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _resetPassword,
+                            child: const Text(
+                              "Forgot Password?",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.blue,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                        ),
+
                         const SizedBox(height: 20),
 
                         // Login Button

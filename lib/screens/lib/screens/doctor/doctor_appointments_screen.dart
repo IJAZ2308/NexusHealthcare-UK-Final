@@ -38,23 +38,108 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
     }
   }
 
-  /// Update appointment status
-  void _updateStatus(String appointmentId, String status) {
-    _appointmentsRef.child(appointmentId).update({'status': status});
+  /// Update appointment status directly (accept only)
+  Future<void> _updateStatus(String appointmentId, String status) async {
+    await _appointmentsRef.child(appointmentId).update({'status': status});
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text("Appointment $status")));
   }
 
-  /// Open detailed patient info dialog
+  /// Cancel appointment with reason
+  void _cancelAppointment(String appointmentId) {
+    final reasonController = TextEditingController();
+
+    if (!mounted) return; // ✅ check before using context
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Cancel Appointment"),
+        content: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(
+            hintText: "Enter cancellation reason",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Close"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final reason = reasonController.text.trim();
+              if (reason.isNotEmpty) {
+                await _appointmentsRef.child(appointmentId).update({
+                  'status': 'cancelled',
+                  'cancelReason': reason,
+                });
+
+                if (!mounted) return; // ✅ safe before using context
+                // ignore: use_build_context_synchronously
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Appointment cancelled")),
+                );
+              }
+            },
+            child: const Text("Submit"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Reschedule appointment
+  Future<void> _rescheduleAppointment(
+    String appointmentId,
+    DateTime oldDate,
+  ) async {
+    if (!mounted) return; // ✅ safe before using context
+    final newDate = await showDatePicker(
+      context: context,
+      initialDate: oldDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (newDate == null) return;
+
+    if (!mounted) return;
+    final newTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(oldDate),
+    );
+    if (newTime == null) return;
+
+    final newDateTime = DateTime(
+      newDate.year,
+      newDate.month,
+      newDate.day,
+      newTime.hour,
+      newTime.minute,
+    );
+
+    await _appointmentsRef.child(appointmentId).update({
+      'status': 'rescheduled',
+      'dateTime': newDateTime.toIso8601String(),
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Appointment rescheduled")));
+  }
+
+  /// Show detailed patient info
   void _showAppointmentDetails(Map<String, dynamic> appointment) {
     final patientId = appointment['patientId'] ?? '';
     final patientInfo = patients[patientId] ?? {};
 
+    if (!mounted) return; // ✅ safe before using context
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(
           patientInfo['firstName'] != null
               ? "${patientInfo['firstName']} ${patientInfo['lastName']}"
@@ -71,11 +156,13 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
             Text("Reason: ${appointment['reason'] ?? ''}"),
             Text("Date & Time: ${appointment['dateTime'] ?? ''}"),
             Text("Status: ${appointment['status'] ?? ''}"),
+            if (appointment['cancelReason'] != null)
+              Text("Cancel Reason: ${appointment['cancelReason']}"),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text("Close"),
           ),
         ],
@@ -101,7 +188,6 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
           final Map<dynamic, dynamic> appointmentsMap =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
 
-          // Convert to list with patient info
           final appointments = appointmentsMap.entries.map((entry) {
             final data = Map<String, dynamic>.from(entry.value as Map);
             data['id'] = entry.key;
@@ -112,20 +198,17 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
                 "${patientInfo['firstName'] ?? ''} ${patientInfo['lastName'] ?? ''}"
                     .trim();
 
-            // Convert dateTime string to DateTime object
             data['dateTimeObj'] =
                 DateTime.tryParse(data['dateTime'] ?? '') ?? DateTime.now();
 
             return data;
           }).toList();
 
-          // Filter upcoming appointments
           final now = DateTime.now();
           final upcomingAppointments = appointments
               .where((appt) => appt['dateTimeObj'].isAfter(now))
               .toList();
 
-          // Sort by datetime
           upcomingAppointments.sort(
             (a, b) => a['dateTimeObj'].compareTo(b['dateTimeObj']),
           );
@@ -158,28 +241,36 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
                   ),
                   isThreeLine: true,
                   onTap: () => _showAppointmentDetails(appt),
-                  trailing: appt['status'] == 'pending'
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.check,
-                                color: Colors.green,
-                              ),
-                              tooltip: 'Accept',
-                              onPressed: () =>
-                                  _updateStatus(appt['id'], 'accepted'),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, color: Colors.red),
-                              tooltip: 'Cancel',
-                              onPressed: () =>
-                                  _updateStatus(appt['id'], 'cancelled'),
-                            ),
-                          ],
-                        )
-                      : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (appt['status'] == 'pending') ...[
+                        IconButton(
+                          icon: const Icon(Icons.check, color: Colors.green),
+                          tooltip: 'Accept',
+                          onPressed: () =>
+                              _updateStatus(appt['id'], 'accepted'),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.red),
+                          tooltip: 'Cancel',
+                          onPressed: () => _cancelAppointment(appt['id']),
+                        ),
+                      ],
+                      if (appt['status'] == 'accepted')
+                        IconButton(
+                          icon: const Icon(
+                            Icons.schedule,
+                            color: Colors.orange,
+                          ),
+                          tooltip: 'Reschedule',
+                          onPressed: () => _rescheduleAppointment(
+                            appt['id'],
+                            appt['dateTimeObj'],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               );
             },
