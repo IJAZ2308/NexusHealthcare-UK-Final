@@ -1,3 +1,4 @@
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -51,7 +52,7 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
   void _cancelAppointment(String appointmentId) {
     final reasonController = TextEditingController();
 
-    if (!mounted) return; // ✅ check before using context
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -76,7 +77,7 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
                   'cancelReason': reason,
                 });
 
-                if (!mounted) return; // ✅ safe before using context
+                if (!mounted) return;
                 // ignore: use_build_context_synchronously
                 Navigator.pop(dialogContext);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -96,7 +97,7 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
     String appointmentId,
     DateTime oldDate,
   ) async {
-    if (!mounted) return; // ✅ safe before using context
+    if (!mounted) return;
     final newDate = await showDatePicker(
       context: context,
       initialDate: oldDate,
@@ -136,7 +137,7 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
     final patientId = appointment['patientId'] ?? '';
     final patientInfo = patients[patientId] ?? {};
 
-    if (!mounted) return; // ✅ safe before using context
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -244,6 +245,24 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // ✅ Chat button
+                      IconButton(
+                        icon: const Icon(Icons.chat, color: Colors.teal),
+                        tooltip: 'Chat with Patient',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                doctorId: uid,
+                                patientId: appt['patientId'],
+                                patientName: appt['patientName'],
+                                doctorName: '',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                       if (appt['status'] == 'pending') ...[
                         IconButton(
                           icon: const Icon(Icons.check, color: Colors.green),
