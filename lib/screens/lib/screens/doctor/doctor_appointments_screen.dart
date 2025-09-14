@@ -1,4 +1,3 @@
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -13,289 +12,180 @@ class DoctorAppointmentsScreen extends StatefulWidget {
 }
 
 class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
-  final DatabaseReference _appointmentsRef = FirebaseDatabase.instance
+  final DatabaseReference _appointmentDB = FirebaseDatabase.instance
       .ref()
-      .child('appointments');
-  Map<String, dynamic> patients = {};
-  final String uid = FirebaseAuth.instance.currentUser!.uid;
+      .child("appointments");
+
+  List<Map<String, dynamic>> _appointments = [];
+  bool _isLoading = true;
+  final _auth = FirebaseAuth.instance;
 
   @override
   void initState() {
     super.initState();
-    _loadPatients();
+    _fetchAppointments();
   }
 
-  /// Load all patients for displaying full info
-  Future<void> _loadPatients() async {
-    final dbRef = FirebaseDatabase.instance.ref().child("patients");
-    final snapshot = await dbRef.get();
-    if (snapshot.exists && snapshot.value != null && mounted) {
-      final Map<String, dynamic> fetchedPatients = Map<String, dynamic>.from(
-        snapshot.value as Map,
-      );
+  /// Fetch only this doctor’s appointments
+  Future<void> _fetchAppointments() async {
+    setState(() => _isLoading = true);
+    try {
+      final doctor = _auth.currentUser;
+      if (doctor == null) return;
+
+      final snapshot = await _appointmentDB.once();
+      final data = snapshot.snapshot.value as Map<dynamic, dynamic>?;
+
+      List<Map<String, dynamic>> tmp = [];
+      if (data != null) {
+        data.forEach((key, value) {
+          if (value["doctorId"] == doctor.uid) {
+            tmp.add({
+              "id": key,
+              "patientId": value["patientId"] ?? "",
+              "doctorId": value["doctorId"] ?? "",
+              "doctorName": value["doctorName"] ?? "",
+              "specialization": value["specialization"] ?? "",
+              "reason": value["reason"] ?? "",
+              "timestamp": value["dateTime"] ?? "",
+              "status": value["status"] ?? "pending",
+              "cancelReason": value["cancelReason"] ?? "",
+            });
+          }
+        });
+      }
+
+      if (!mounted) return;
       setState(() {
-        patients = fetchedPatients;
+        _appointments = tmp;
       });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error fetching appointments: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  /// Update appointment status directly (accept only)
-  Future<void> _updateStatus(String appointmentId, String status) async {
-    await _appointmentsRef.child(appointmentId).update({'status': status});
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text("Appointment $status")));
+  /// Accept appointment
+  Future<void> _acceptAppointment(String appointmentId) async {
+    await _appointmentDB.child(appointmentId).update({"status": "accepted"});
+    _fetchAppointments();
   }
 
-  /// Cancel appointment with reason
-  void _cancelAppointment(String appointmentId) {
-    final reasonController = TextEditingController();
-
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Cancel Appointment"),
-        content: TextField(
-          controller: reasonController,
-          decoration: const InputDecoration(
-            hintText: "Enter cancellation reason",
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Close"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final reason = reasonController.text.trim();
-              if (reason.isNotEmpty) {
-                await _appointmentsRef.child(appointmentId).update({
-                  'status': 'cancelled',
-                  'cancelReason': reason,
-                });
-
-                if (!mounted) return;
-                // ignore: use_build_context_synchronously
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Appointment cancelled")),
-                );
-              }
-            },
-            child: const Text("Submit"),
-          ),
-        ],
-      ),
-    );
+  /// Cancel appointment
+  Future<void> _cancelAppointment(String appointmentId) async {
+    await _appointmentDB.child(appointmentId).update({
+      "status": "cancelled",
+      "cancelReason": "Cancelled by doctor",
+    });
+    _fetchAppointments();
   }
 
   /// Reschedule appointment
-  Future<void> _rescheduleAppointment(
-    String appointmentId,
-    DateTime oldDate,
-  ) async {
-    if (!mounted) return;
-    final newDate = await showDatePicker(
+  Future<void> _rescheduleAppointment(String appointmentId) async {
+    DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: oldDate,
+      initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (newDate == null) return;
 
-    if (!mounted) return;
-    final newTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(oldDate),
-    );
-    if (newTime == null) return;
+    if (pickedDate != null) {
+      TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
 
-    final newDateTime = DateTime(
-      newDate.year,
-      newDate.month,
-      newDate.day,
-      newTime.hour,
-      newTime.minute,
-    );
+      if (pickedTime != null) {
+        final newDateTime = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
 
-    await _appointmentsRef.child(appointmentId).update({
-      'status': 'rescheduled',
-      'dateTime': newDateTime.toIso8601String(),
-    });
+        await _appointmentDB.child(appointmentId).update({
+          "status": "rescheduled",
+          "dateTime": newDateTime.toIso8601String(),
+        });
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Appointment rescheduled")));
-  }
-
-  /// Show detailed patient info
-  void _showAppointmentDetails(Map<String, dynamic> appointment) {
-    final patientId = appointment['patientId'] ?? '';
-    final patientInfo = patients[patientId] ?? {};
-
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          patientInfo['firstName'] != null
-              ? "${patientInfo['firstName']} ${patientInfo['lastName']}"
-              : "Patient Info",
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (patientInfo['email'] != null)
-              Text("Email: ${patientInfo['email']}"),
-            if (patientInfo['phoneNumber'] != null)
-              Text("Phone: ${patientInfo['phoneNumber']}"),
-            Text("Reason: ${appointment['reason'] ?? ''}"),
-            Text("Date & Time: ${appointment['dateTime'] ?? ''}"),
-            Text("Status: ${appointment['status'] ?? ''}"),
-            if (appointment['cancelReason'] != null)
-              Text("Cancel Reason: ${appointment['cancelReason']}"),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Close"),
-          ),
-        ],
-      ),
-    );
+        _fetchAppointments();
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Doctor Appointments")),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: _appointmentsRef.orderByChild('doctorId').equalTo(uid).onValue,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _appointments.isEmpty
+          ? const Center(child: Text("No appointments found."))
+          : ListView.builder(
+              itemCount: _appointments.length,
+              itemBuilder: (context, index) {
+                final appt = _appointments[index];
+                final dateTimeObj = DateTime.tryParse(appt["timestamp"] ?? "");
+                final formattedDate = dateTimeObj != null
+                    ? DateFormat(
+                        "EEE, dd MMM yyyy – hh:mm a",
+                      ).format(dateTimeObj.toLocal())
+                    : "Unknown date";
 
-          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(child: Text("No appointments found."));
-          }
-
-          final Map<dynamic, dynamic> appointmentsMap =
-              snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-
-          final appointments = appointmentsMap.entries.map((entry) {
-            final data = Map<String, dynamic>.from(entry.value as Map);
-            data['id'] = entry.key;
-
-            final patientId = data['patientId'] ?? '';
-            final patientInfo = patients[patientId] ?? {};
-            data['patientName'] =
-                "${patientInfo['firstName'] ?? ''} ${patientInfo['lastName'] ?? ''}"
-                    .trim();
-
-            data['dateTimeObj'] =
-                DateTime.tryParse(data['dateTime'] ?? '') ?? DateTime.now();
-
-            return data;
-          }).toList();
-
-          final now = DateTime.now();
-          final upcomingAppointments = appointments
-              .where((appt) => appt['dateTimeObj'].isAfter(now))
-              .toList();
-
-          upcomingAppointments.sort(
-            (a, b) => a['dateTimeObj'].compareTo(b['dateTimeObj']),
-          );
-
-          if (upcomingAppointments.isEmpty) {
-            return const Center(child: Text("No upcoming appointments."));
-          }
-
-          return ListView.builder(
-            itemCount: upcomingAppointments.length,
-            itemBuilder: (context, index) {
-              final appt = upcomingAppointments[index];
-              final formattedDate = DateFormat(
-                'EEE, dd MMM yyyy – hh:mm a',
-              ).format(appt['dateTimeObj']);
-
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: ListTile(
-                  leading: const Icon(Icons.person, color: Colors.blue),
-                  title: Text(
-                    appt['patientName'].isNotEmpty
-                        ? appt['patientName']
-                        : "Patient ID: ${appt['patientId']}",
-                  ),
-                  subtitle: Text(
-                    "Date & Time: $formattedDate\n"
-                    "Reason: ${appt['reason'] ?? ''}\n"
-                    "Status: ${appt['status'] ?? ''}",
-                  ),
-                  isThreeLine: true,
-                  onTap: () => _showAppointmentDetails(appt),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // ✅ Chat button
-                      IconButton(
-                        icon: const Icon(Icons.chat, color: Colors.teal),
-                        tooltip: 'Chat with Patient',
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ChatScreen(
-                                doctorId: uid,
-                                patientId: appt['patientId'],
-                                patientName: appt['patientName'],
-                                doctorName: '',
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      if (appt['status'] == 'pending') ...[
-                        IconButton(
-                          icon: const Icon(Icons.check, color: Colors.green),
-                          tooltip: 'Accept',
-                          onPressed: () =>
-                              _updateStatus(appt['id'], 'accepted'),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.red),
-                          tooltip: 'Cancel',
-                          onPressed: () => _cancelAppointment(appt['id']),
-                        ),
+                return Card(
+                  margin: const EdgeInsets.all(8),
+                  child: ListTile(
+                    title: Text("Patient ID: ${appt["patientId"]}"),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Reason: ${appt["reason"]}"),
+                        Text("Date: $formattedDate"),
+                        Text("Status: ${appt["status"]}"),
+                        if (appt["status"] == "cancelled" &&
+                            appt["cancelReason"].isNotEmpty)
+                          Text(
+                            "Reason: ${appt["cancelReason"]}",
+                            style: const TextStyle(color: Colors.red),
+                          ),
                       ],
-                      if (appt['status'] == 'accepted')
-                        IconButton(
-                          icon: const Icon(
-                            Icons.schedule,
-                            color: Colors.orange,
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == "accept") {
+                          _acceptAppointment(appt["id"]);
+                        } else if (value == "reschedule") {
+                          _rescheduleAppointment(appt["id"]);
+                        } else if (value == "cancel") {
+                          _cancelAppointment(appt["id"]);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (appt["status"] == "pending") ...[
+                          const PopupMenuItem(
+                            value: "accept",
+                            child: Text("Accept"),
                           ),
-                          tooltip: 'Reschedule',
-                          onPressed: () => _rescheduleAppointment(
-                            appt['id'],
-                            appt['dateTimeObj'],
+                          const PopupMenuItem(
+                            value: "reschedule",
+                            child: Text("Reschedule"),
                           ),
-                        ),
-                    ],
+                          const PopupMenuItem(
+                            value: "cancel",
+                            child: Text("Cancel"),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                );
+              },
+            ),
     );
   }
 }

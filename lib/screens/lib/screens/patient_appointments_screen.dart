@@ -137,6 +137,22 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                       ).format(dateTimeObj.toLocal())
                     : 'Unknown date';
 
+                // Color coding for status
+                Color statusColor;
+                switch (appt['status']) {
+                  case 'accepted':
+                    statusColor = Colors.green;
+                    break;
+                  case 'rescheduled':
+                    statusColor = Colors.orange;
+                    break;
+                  case 'cancelled':
+                    statusColor = Colors.red;
+                    break;
+                  default:
+                    statusColor = Colors.blueGrey;
+                }
+
                 return Card(
                   margin: const EdgeInsets.all(8),
                   child: ListTile(
@@ -147,7 +163,10 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                         Text(appt['specialization']),
                         const SizedBox(height: 4),
                         Text("Date: $formattedDate"),
-                        Text("Status: ${appt['status']}"),
+                        Text(
+                          "Status: ${appt['status']}",
+                          style: TextStyle(color: statusColor),
+                        ),
                         if (appt['status'] == 'cancelled' &&
                             appt['cancelReason'].isNotEmpty)
                           Text(
