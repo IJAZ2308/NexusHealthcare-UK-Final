@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
@@ -18,6 +19,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
   final DatabaseReference _appointmentDB = FirebaseDatabase.instance
       .ref()
       .child('appointments');
+  final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
   List<Map<String, dynamic>> _appointments = [];
   bool _isLoading = true;
@@ -28,8 +30,10 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     _fetchAppointments();
   }
 
-  /// Fetch all appointments from Firebase
+  /// Fetch only the current patient's appointments
   Future<void> _fetchAppointments() async {
+    if (_currentUserId == null) return;
+
     setState(() => _isLoading = true);
 
     try {
@@ -40,15 +44,18 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
       if (data != null) {
         final map = data as Map<dynamic, dynamic>;
         map.forEach((key, value) {
-          tmp.add({
-            'id': key,
-            'doctorId': value['doctorId'] ?? '',
-            'doctorName': value['doctorName'] ?? '',
-            'specialization': value['specialization'] ?? '',
-            'timestamp': value['dateTime'] ?? '',
-            'status': value['status'] ?? 'pending',
-            'cancelReason': value['cancelReason'] ?? '',
-          });
+          // ✅ Only include appointments for this patient
+          if (value['patientId'] == _currentUserId) {
+            tmp.add({
+              'id': key,
+              'doctorId': value['doctorId'] ?? '',
+              'doctorName': value['doctorName'] ?? '',
+              'specialization': value['specialization'] ?? '',
+              'timestamp': value['dateTime'] ?? '',
+              'status': value['status'] ?? 'pending',
+              'cancelReason': value['cancelReason'] ?? '',
+            });
+          }
         });
       }
 
