@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
-import 'models/appointment_model.dart';
 
 class BookAppointmentScreen extends StatefulWidget {
   final String doctorId;
@@ -22,160 +21,131 @@ class BookAppointmentScreen extends StatefulWidget {
 
 class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _reasonController = TextEditingController();
+  final _reasonController = TextEditingController();
   DateTime? _selectedDateTime;
-  bool _loading = false;
+  bool _isLoading = false;
 
-  /// Pick date & time
   Future<void> _pickDateTime() async {
-    final selectedDate = await showDatePicker(
+    DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
+      initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (selectedDate == null || !mounted) return;
 
-    final selectedTime = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 9, minute: 0),
-    );
-    if (selectedTime == null || !mounted) return;
+    if (pickedDate != null) {
+      TimeOfDay? pickedTime = await showTimePicker(
+        // ignore: use_build_context_synchronously
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          _selectedDateTime = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
+    }
+  }
+
+  Future<void> _bookAppointment() async {
+    if (!_formKey.currentState!.validate() || _selectedDateTime == null) return;
 
     setState(() {
-      _selectedDateTime = DateTime(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        selectedTime.hour,
-        selectedTime.minute,
-      );
+      _isLoading = true;
     });
-  }
-
-  String get _formattedDateTime {
-    if (_selectedDateTime == null) return 'Tap to select';
-    return DateFormat('EEE, dd MMM yyyy – hh:mm a').format(_selectedDateTime!);
-  }
-
-  /// Book appointment in Firebase
-  Future<void> _bookAppointment() async {
-    if (_selectedDateTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select date & time")),
-      );
-      return;
-    }
-
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _loading = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser!;
-      final dbRef = FirebaseDatabase.instance.ref().child("appointments");
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-      // Check for double booking
-      final snapshot = await dbRef
-          .orderByChild('doctorId')
-          .equalTo(widget.doctorId)
-          .get();
-      bool conflict = false;
-      if (snapshot.exists) {
-        final appointments = snapshot.value as Map<dynamic, dynamic>;
-        for (var appt in appointments.values) {
-          final existingDate = DateTime.parse(appt['dateTime']);
-          if (existingDate == _selectedDateTime) {
-            conflict = true;
-            break;
-          }
-        }
-      }
+      final appointmentRef = FirebaseDatabase.instance
+          .ref()
+          .child("appointments")
+          .push();
 
-      if (conflict) {
-        if (!mounted) return;
+      final appointmentId = appointmentRef.key;
+
+      await appointmentRef.set({
+        "id": appointmentId,
+        "patientId": user.uid,
+        "doctorId": widget.doctorId,
+        "doctorName": widget.doctorName,
+        "specialization": widget.specialization,
+        "reason": _reasonController.text.trim(),
+        "dateTime": _selectedDateTime!.toIso8601String(),
+        "status": "pending", // 🔥 added default status
+        "createdAt": DateTime.now().toIso8601String(),
+      });
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("This time slot is already booked!")),
+          const SnackBar(content: Text("Appointment booked successfully!")),
         );
-        return;
+        Navigator.pop(context);
       }
-
-      // Book appointment
-      final newAppointmentRef = dbRef.push();
-      final appointmentData = Appointment(
-        id: newAppointmentRef.key!,
-        patientId: user.uid,
-        doctorId: widget.doctorId,
-        dateTime: _selectedDateTime!,
-        reason: _reasonController.text.trim(),
-      ).toMap();
-
-      await newAppointmentRef.set(appointmentData);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Appointment booked successfully!")),
-      );
-      Navigator.pop(context);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error booking appointment: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Book with ${widget.doctorName}")),
-      body: SingleChildScrollView(
+      appBar: AppBar(title: const Text("Book Appointment")),
+      body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "Specialization: ${widget.specialization}",
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 16),
-
-              InkWell(
-                onTap: _pickDateTime,
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Select Date & Time',
-                    border: OutlineInputBorder(),
-                  ),
-                  child: Text(_formattedDateTime),
-                ),
-              ),
-              const SizedBox(height: 16),
-
               TextFormField(
                 controller: _reasonController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: "Reason for visit",
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Enter a reason" : null,
+                decoration: const InputDecoration(labelText: "Reason"),
+                validator: (val) =>
+                    val == null || val.isEmpty ? "Enter a reason" : null,
               ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _bookAppointment,
-                        child: const Text("Book Appointment"),
-                      ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _selectedDateTime == null
+                          ? "No date selected"
+                          : DateFormat(
+                              "yyyy-MM-dd HH:mm",
+                            ).format(_selectedDateTime!),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: _pickDateTime,
+                    child: const Text("Pick Date & Time"),
+                  ),
+                ],
               ),
+              const SizedBox(height: 20),
+              _isLoading
+                  ? const CircularProgressIndicator()
+                  : ElevatedButton(
+                      onPressed: _bookAppointment,
+                      child: const Text("Book Appointment"),
+                    ),
             ],
           ),
         ),
