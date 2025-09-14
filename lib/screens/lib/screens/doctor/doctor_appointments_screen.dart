@@ -95,6 +95,7 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
 
     if (pickedDate != null) {
       TimeOfDay? pickedTime = await showTimePicker(
+        // ignore: use_build_context_synchronously
         context: context,
         initialTime: TimeOfDay.now(),
       );
