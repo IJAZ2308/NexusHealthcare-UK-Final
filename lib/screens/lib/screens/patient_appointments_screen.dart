@@ -1,9 +1,10 @@
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/models/doctor.dart';
 import 'package:intl/intl.dart';
+
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_details_page.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/models/doctor.dart';
 
 class PatientAppointmentsScreen extends StatefulWidget {
   const PatientAppointmentsScreen({super.key});
@@ -27,40 +28,47 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     _fetchAppointments();
   }
 
-  // Fetch all appointments from Firebase
+  /// Fetch all appointments from Firebase
   Future<void> _fetchAppointments() async {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
-    final snapshot = await _appointmentDB.once();
-    final data = snapshot.snapshot.value;
+    try {
+      final snapshot = await _appointmentDB.once();
+      final data = snapshot.snapshot.value;
 
-    List<Map<String, dynamic>> tmp = [];
-    if (data != null) {
-      final map = data as Map<dynamic, dynamic>;
-      map.forEach((key, value) {
-        tmp.add({
-          'id': key,
-          'doctorId': value['doctorId'] ?? '',
-          'doctorName': value['doctorName'] ?? '',
-          'specialization': value['specialization'] ?? '',
-          'timestamp': value['dateTime'] ?? '',
-          'status': value['status'] ?? 'pending',
-          'cancelReason': value['cancelReason'] ?? '',
+      List<Map<String, dynamic>> tmp = [];
+      if (data != null) {
+        final map = data as Map<dynamic, dynamic>;
+        map.forEach((key, value) {
+          tmp.add({
+            'id': key,
+            'doctorId': value['doctorId'] ?? '',
+            'doctorName': value['doctorName'] ?? '',
+            'specialization': value['specialization'] ?? '',
+            'timestamp': value['dateTime'] ?? '',
+            'status': value['status'] ?? 'pending',
+            'cancelReason': value['cancelReason'] ?? '',
+          });
         });
-      });
-    }
+      }
 
-    if (!mounted) return;
-    setState(() {
-      _appointments = tmp;
-      _isLoading = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _appointments = tmp;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error fetching appointments: $e")),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
-  // Cancel an existing appointment (patient cancels their own)
+  /// Cancel an existing appointment
   Future<void> _cancelAppointment(String appointmentId) async {
     try {
       await _appointmentDB.child(appointmentId).update({
@@ -82,7 +90,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     }
   }
 
-  // Navigate to doctor list to book a new appointment
+  /// Navigate to doctor list → doctor details → confirm appointment
   Future<void> _bookNewAppointment() async {
     final Doctor? selectedDoctor = await Navigator.push(
       context,
@@ -90,7 +98,6 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     );
 
     if (selectedDoctor != null && mounted) {
-      // Open doctor details page to select date/time and confirm booking
       await Navigator.push(
         context,
         MaterialPageRoute(
