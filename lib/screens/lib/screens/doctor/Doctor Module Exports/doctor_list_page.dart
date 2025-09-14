@@ -30,7 +30,10 @@ class _DoctorListPageState extends State<DoctorListPage> {
     {"title": "Plastic Surgery", "icon": "assets/images/plastic.png"},
     {"title": "Paediatric Surgery", "icon": "assets/images/child.png"},
     {"title": "Neonatology", "icon": "assets/images/neonatal.png"},
-    {"title": "Obstetrics & Gynaecology (O&G)", "icon": "assets/images/gy.png"},
+    {
+      "title": "Obstetrics & Gynaecology (O&G)",
+      "icon": "assets/images/gyn.png",
+    },
     {"title": "Oncology", "icon": "assets/images/onco.png"},
     {"title": "General Practice", "icon": "assets/images/gp.png"},
     {"title": "Radiology & Imaging", "icon": "assets/images/ru.png"},
