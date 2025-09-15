@@ -13,6 +13,7 @@ class Doctor {
   final double longitude;
   final int numberOfReviews;
   final int totalReviews;
+  final bool isVerified; // ✅ New field for verification
 
   Doctor({
     required this.uid,
@@ -29,6 +30,7 @@ class Doctor {
     required this.longitude,
     required this.numberOfReviews,
     required this.totalReviews,
+    this.isVerified = false, // default not verified
   });
 
   /// Factory constructor for Realtime Database snapshot
@@ -49,6 +51,7 @@ class Doctor {
       longitude: (map['longitude'] ?? 0).toDouble(),
       numberOfReviews: map['numberOfReviews'] ?? 0,
       totalReviews: map['totalReviews'] ?? 0,
+      isVerified: map['isVerified'] ?? false, // ✅ read verification status
     );
   }
 
@@ -69,6 +72,7 @@ class Doctor {
       'longitude': longitude,
       'numberOfReviews': numberOfReviews,
       'totalReviews': totalReviews,
+      'isVerified': isVerified, // ✅ save verification status
     };
   }
 
@@ -78,6 +82,7 @@ class Doctor {
   /// Specialization alias
   String get specialization => category;
 
-  /// Remove the old unused getter
-  // Removed `get specialty => null;`
+  /// ✅ Get a message about verification
+  String get verificationMessage =>
+      isVerified ? "You are verified ✅" : "Not verified ❌";
 }

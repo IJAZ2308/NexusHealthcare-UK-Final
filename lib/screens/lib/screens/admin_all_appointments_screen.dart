@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 
-class AdminAllAppointmentsScreen extends StatelessWidget {
+class AdminAllAppointmentsScreen extends StatefulWidget {
   const AdminAllAppointmentsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final dbRef = FirebaseDatabase.instance.ref();
+  State<AdminAllAppointmentsScreen> createState() =>
+      _AdminAllAppointmentsScreenState();
+}
 
+class _AdminAllAppointmentsScreenState
+    extends State<AdminAllAppointmentsScreen> {
+  final DatabaseReference _appointmentsRef = FirebaseDatabase.instance
+      .ref()
+      .child("appointments");
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("All Appointments & Bed Status")),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: dbRef.child("appointments").onValue,
+      appBar: AppBar(title: const Text("All Appointments")),
+      body: StreamBuilder(
+        stream: _appointmentsRef.onValue,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -21,145 +30,62 @@ class AdminAllAppointmentsScreen extends StatelessWidget {
             return const Center(child: Text("No appointments found"));
           }
 
-          // Convert appointments map into a list
-          final Map<dynamic, dynamic> data =
-              snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+          Map rawData = snapshot.data!.snapshot.value as Map;
+          List<Map<String, dynamic>> appointments = [];
 
-          final appointments = data.entries.map((entry) {
-            final Map<String, dynamic> appointment = Map<String, dynamic>.from(
-              entry.value,
-            );
-            appointment['id'] = entry.key;
-            return appointment;
+          rawData.forEach((key, value) {
+            appointments.add({
+              "id": key,
+              "patientName": value["patientName"] ?? "Unknown",
+              "doctorName": value["doctorName"] ?? "Unknown",
+              "status": value["status"] ?? "pending",
+              "patientId": value["patientId"],
+              "doctorId": value["doctorId"],
+            });
           });
 
-          return FutureBuilder<DataSnapshot>(
-            future: dbRef
-                .get(), // one-time read for doctors, patients, hospitals
-            builder: (context, futureSnapshot) {
-              if (!futureSnapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
+          return ListView.builder(
+            itemCount: appointments.length,
+            itemBuilder: (context, index) {
+              var appt = appointments[index];
 
-              final dbData =
-                  futureSnapshot.data!.value as Map<dynamic, dynamic>;
+              return Card(
+                margin: const EdgeInsets.all(10),
+                child: ListTile(
+                  title: Text("${appt["patientName"]} → ${appt["doctorName"]}"),
+                  subtitle: Text("Status: ${appt["status"]}"),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      await _appointmentsRef.child(appt["id"]).update({
+                        "status": value,
+                      });
 
-              final doctors = Map<String, dynamic>.from(
-                dbData['doctors'] ?? {},
-              );
-              final patients = Map<String, dynamic>.from(
-                dbData['patients'] ?? {},
-              );
-              final hospitals = Map<String, dynamic>.from(
-                dbData['hospitals'] ?? {},
-              );
-
-              // Group appointments by doctorId
-              final Map<String, List<Map<String, dynamic>>> groupedByDoctor =
-                  {};
-              for (var appt in appointments) {
-                final doctorId = appt['doctorId'] ?? 'unknown';
-                if (!groupedByDoctor.containsKey(doctorId)) {
-                  groupedByDoctor[doctorId] = [];
-                }
-                groupedByDoctor[doctorId]!.add(appt);
-              }
-
-              return ListView(
-                children: [
-                  // Bed availability section
-                  Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Hospital Bed Status",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                      // ignore: use_build_context_synchronously
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            "Appointment marked as $value for ${appt['patientName']}",
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        ...hospitals.entries.map((entry) {
-                          final hospital = Map<String, dynamic>.from(
-                            entry.value,
-                          );
-                          final name = hospital['name'] ?? 'Unknown Hospital';
-                          final totalBeds = hospital['totalBeds'] ?? 0;
-                          final occupiedBeds = hospital['occupiedBeds'] ?? 0;
-                          final availableBeds = totalBeds - occupiedBeds;
-
-                          return Card(
-                            color: availableBeds <= 0
-                                ? Colors.red[100]
-                                : Colors.lightBlue[50],
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            child: ListTile(
-                              title: Text(
-                                name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Text(
-                                "Total Beds: $totalBeds\nOccupied Beds: $occupiedBeds\nAvailable Beds: $availableBeds",
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-
-                  const Divider(thickness: 2),
-
-                  // Appointments grouped by doctor
-                  ...groupedByDoctor.entries.map((entry) {
-                    final doctorId = entry.key;
-                    final doctorName =
-                        doctors[doctorId]?['name'] ?? "Unknown Doctor";
-                    final doctorAppointments = entry.value;
-
-                    return ExpansionTile(
-                      title: Text(
-                        "Doctor: $doctorName (${doctorAppointments.length})",
+                      );
+                      // ✅ Cloud Function will handle sending FCM notification
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: "approved",
+                        child: Text("Approve ✅"),
                       ),
-                      children: [
-                        ...doctorAppointments.map((appt) {
-                          final patientName =
-                              patients[appt['patientId']]?['name'] ??
-                              "Unknown Patient";
-                          final hospitalName =
-                              hospitals[appt['hospitalId']]?['name'] ??
-                              "Unknown Hospital";
-
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            child: ListTile(
-                              title: Text("Patient: $patientName"),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text("Hospital: $hospitalName"),
-                                  Text(
-                                    "Date: ${appt['date']}  Time: ${appt['time']}",
-                                  ),
-                                  Text("Reason: ${appt['reason'] ?? 'N/A'}"),
-                                  Text("Status: ${appt['status']}"),
-                                ],
-                              ),
-                              isThreeLine: true,
-                            ),
-                          );
-                        }),
-                      ],
-                    );
-                  }),
-                ],
+                      const PopupMenuItem(
+                        value: "rejected",
+                        child: Text("Reject ❌"),
+                      ),
+                      const PopupMenuItem(
+                        value: "completed",
+                        child: Text("Complete ✔"),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           );

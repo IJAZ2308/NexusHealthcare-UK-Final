@@ -4,15 +4,11 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
 import 'package:dr_shahin_uk/screens/auth/login_screen.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MyApp());
-}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -153,4 +149,50 @@ class AuthService {
       return null;
     }
   }
+}
+
+// ------------------------ FCM BACKGROUND HANDLER ------------------------
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  developer.log("🔔 Handling background message: ${message.messageId}");
+}
+
+// ------------------------ MODIFY MAIN TO INIT FCM ------------------------
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Register FCM background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  runApp(const MyApp());
+}
+
+// ------------------------ SAVE FCM TOKEN ------------------------
+Future<void> saveUserToken() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  String? token = await FirebaseMessaging.instance.getToken();
+  if (token != null) {
+    await FirebaseDatabase.instance.ref("users/${user.uid}").update({
+      "fcmToken": token,
+    });
+    developer.log("🔑 Saved FCM Token: $token");
+  }
+}
+
+// ------------------------ FOREGROUND FCM LISTENER ------------------------
+void setupFCMListeners(BuildContext context) {
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    if (message.notification != null) {
+      final title = message.notification!.title ?? "";
+      final body = message.notification!.body ?? "";
+
+      ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
+        context,
+      ).showSnackBar(SnackBar(content: Text("$title\n$body")));
+    }
+  });
 }
