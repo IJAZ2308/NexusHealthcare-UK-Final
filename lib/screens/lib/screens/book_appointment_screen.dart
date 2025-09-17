@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:intl/intl.dart';
 import 'models/doctor.dart';
+import 'package:intl/intl.dart';
 
 class BookAppointmentScreen extends StatefulWidget {
   final Doctor doctor;
@@ -16,8 +16,10 @@ class BookAppointmentScreen extends StatefulWidget {
 class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   final _formKey = GlobalKey<FormState>();
   final _reasonController = TextEditingController();
-  DateTime? _selectedDateTime;
+  DateTime _selectedDate = DateTime.now();
+  TimeOfDay? _selectedTime;
   bool _isLoading = false;
+
   List<DateTime> _bookedSlots = [];
 
   @override
@@ -51,71 +53,30 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     });
   }
 
-  Future<void> _pickDateTime() async {
-    // Pick date
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      selectableDayPredicate: (day) {
-        if (day.isBefore(DateTime.now())) return false;
-
-        int bookedCount = _bookedSlots
-            .where(
-              (slot) =>
-                  slot.year == day.year &&
-                  slot.month == day.month &&
-                  slot.day == day.day,
-            )
-            .length;
-        return bookedCount < 24; // assuming max 24 slots/day
-      },
-    );
-
-    if (pickedDate == null || !mounted) return;
-
-    // Pick time
-    TimeOfDay? pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-
-    if (pickedTime == null || !mounted) return;
-
-    DateTime finalDateTime = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-
-    bool isBooked = _bookedSlots.any(
-      (slot) =>
-          slot.year == finalDateTime.year &&
-          slot.month == finalDateTime.month &&
-          slot.day == finalDateTime.day &&
-          slot.hour == finalDateTime.hour &&
-          slot.minute == finalDateTime.minute,
-    );
-
-    if (isBooked || finalDateTime.isBefore(DateTime.now())) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("This slot is already booked!")),
-      );
-      return;
+  List<TimeOfDay> _generateTimeSlots() {
+    // Slots from 9 AM to 5 PM every 30 mins
+    List<TimeOfDay> slots = [];
+    for (int hour = 9; hour <= 16; hour++) {
+      slots.add(TimeOfDay(hour: hour, minute: 0));
+      slots.add(TimeOfDay(hour: hour, minute: 30));
     }
+    slots.add(const TimeOfDay(hour: 17, minute: 0));
+    return slots;
+  }
 
-    if (!mounted) return;
-    setState(() {
-      _selectedDateTime = finalDateTime;
-    });
+  bool _isSlotBooked(TimeOfDay time) {
+    return _bookedSlots.any(
+      (slot) =>
+          slot.year == _selectedDate.year &&
+          slot.month == _selectedDate.month &&
+          slot.day == _selectedDate.day &&
+          slot.hour == time.hour &&
+          slot.minute == time.minute,
+    );
   }
 
   Future<void> _bookAppointment() async {
-    if (!_formKey.currentState!.validate() || _selectedDateTime == null) return;
+    if (!_formKey.currentState!.validate() || _selectedTime == null) return;
 
     setState(() {
       _isLoading = true;
@@ -131,6 +92,25 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           .push();
       final appointmentId = appointmentRef.key;
 
+      final dateTime = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+
+      if (_isSlotBooked(_selectedTime!)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("This slot is already booked!")),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
       await appointmentRef.set({
         "id": appointmentId,
         "patientId": user.uid,
@@ -138,7 +118,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         "doctorName": "${widget.doctor.firstName} ${widget.doctor.lastName}",
         "specialization": widget.doctor.category,
         "reason": _reasonController.text.trim(),
-        "dateTime": _selectedDateTime!.toIso8601String(),
+        "dateTime": dateTime.toIso8601String(),
         "status": "pending",
         "createdAt": DateTime.now().toIso8601String(),
       });
@@ -155,7 +135,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
-      // ignore: control_flow_in_finally
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -166,6 +145,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   @override
   Widget build(BuildContext context) {
     final doctor = widget.doctor;
+    final timeSlots = _generateTimeSlots();
 
     return Scaffold(
       appBar: AppBar(title: const Text("Book Appointment")),
@@ -175,7 +155,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           key: _formKey,
           child: Column(
             children: [
-              // Doctor Info Card
+              // Doctor Info
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -195,7 +175,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       : null,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
               // Reason
               TextFormField(
@@ -210,25 +190,81 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Date & Time Picker
+              // Date Picker
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      _selectedDateTime == null
-                          ? "No date selected"
-                          : DateFormat(
-                              "yyyy-MM-dd HH:mm",
-                            ).format(_selectedDateTime!),
+                      "Selected Date: ${DateFormat('yyyy-MM-dd').format(_selectedDate)}",
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: _pickDateTime,
-                    child: const Text("Pick Date & Time"),
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null && mounted) {
+                        setState(() {
+                          _selectedDate = picked;
+                          _selectedTime = null; // reset time when date changes
+                        });
+                      }
+                    },
+                    child: const Text("Pick Date"),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
+              // Time Slots Grid
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    childAspectRatio: 2.5,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: timeSlots.length,
+                  itemBuilder: (context, index) {
+                    final time = timeSlots[index];
+                    final isBooked = _isSlotBooked(time);
+                    final isSelected = _selectedTime == time;
+
+                    return GestureDetector(
+                      onTap: isBooked
+                          ? null
+                          : () {
+                              if (!mounted) return;
+                              setState(() {
+                                _selectedTime = time;
+                              });
+                            },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isBooked
+                              ? Colors.red[300]
+                              : isSelected
+                              ? Colors.blue
+                              : Colors.green[300],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          "${time.format(context)}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
 
               // Book Button
               _isLoading
