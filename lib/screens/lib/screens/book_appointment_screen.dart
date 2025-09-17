@@ -135,6 +135,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
+      // ignore: control_flow_in_finally
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -254,6 +255,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
+                          // ignore: unnecessary_string_interpolations
                           "${time.format(context)}",
                           style: const TextStyle(
                             color: Colors.white,
