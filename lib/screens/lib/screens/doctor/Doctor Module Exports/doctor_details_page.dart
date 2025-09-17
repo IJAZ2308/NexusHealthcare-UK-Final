@@ -18,7 +18,7 @@ class DoctorDetailPage extends StatefulWidget {
 class _DoctorDetailPageState extends State<DoctorDetailPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _appointmentsRef = FirebaseDatabase.instance.ref(
-    'appointments',
+    "appointments",
   );
 
   final TextEditingController _descriptionController = TextEditingController();
@@ -38,10 +38,10 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
             _buildProfileSection(),
             const SizedBox(height: 30),
             _buildMapButton(),
-            const SizedBox(height: 50),
+            const SizedBox(height: 40),
             const Text(
               'Select Date & Time',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             _buildDateTimePicker(),
@@ -52,6 +52,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
       ),
     );
   }
+
+  // ==================== UI SECTIONS ====================
 
   Widget _buildProfileSection() {
     return Row(
@@ -81,8 +83,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
               Text(
                 '${widget.doctor.firstName} ${widget.doctor.lastName}',
                 style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 4),
@@ -95,25 +97,15 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
                 'From: ${widget.doctor.city}',
                 style: const TextStyle(fontSize: 14, color: Color(0xffFA9600)),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   IconButton(
-                    icon: Image.asset(
-                      'assets/images/phone_call.png',
-                      width: 30,
-                      height: 30,
-                      color: Colors.blue,
-                    ),
+                    icon: const Icon(Icons.phone, color: Colors.blue, size: 28),
                     onPressed: () => _makePhoneCall(widget.doctor.phoneNumber),
                   ),
                   IconButton(
-                    icon: Image.asset(
-                      'assets/images/chat_icon.png',
-                      width: 30,
-                      height: 30,
-                      color: Colors.blue,
-                    ),
+                    icon: const Icon(Icons.chat, color: Colors.blue, size: 28),
                     onPressed: _openChatScreen,
                   ),
                 ],
@@ -152,7 +144,7 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(6),
         color: const Color(0xffF0EFFF),
-        border: Border.all(color: const Color(0xffC8C4FF), width: 1),
+        border: Border.all(color: const Color(0xffC8C4FF)),
       ),
       child: Column(
         children: [
@@ -163,7 +155,7 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xff0064FA),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -173,17 +165,17 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
                     _selectedDate == null
                         ? 'Select Date'
                         : DateFormat('MM/dd/yyyy').format(_selectedDate!),
-                    style: const TextStyle(fontSize: 15, letterSpacing: 0.6),
+                    style: const TextStyle(fontSize: 15),
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xff0064FA),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -193,7 +185,7 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
                     _selectedTime == null
                         ? 'Select Time'
                         : _selectedTime!.format(context),
-                    style: const TextStyle(fontSize: 15, letterSpacing: 0.6),
+                    style: const TextStyle(fontSize: 15),
                   ),
                 ),
               ),
@@ -204,12 +196,12 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
             controller: _descriptionController,
             maxLines: 3,
             decoration: InputDecoration(
-              hintText: 'Description',
+              hintText: 'Reason for appointment',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
               filled: true,
-              fillColor: const Color(0xffF0EFFF),
+              fillColor: Colors.white,
             ),
           ),
         ],
@@ -226,10 +218,7 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xff0064FA),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -237,13 +226,13 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
               onPressed: _bookAppointment,
               child: const Text(
                 'BOOK APPOINTMENT',
-                style: TextStyle(fontSize: 16, letterSpacing: 2),
+                style: TextStyle(fontSize: 16, letterSpacing: 1.2),
               ),
             ),
     );
   }
 
-  // ==================== Functions ====================
+  // ==================== FUNCTIONS ====================
 
   Future<void> _selectDate(BuildContext context) async {
     final picked = await showDatePicker(
@@ -273,10 +262,8 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
     );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
-    } else if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Could not open map')));
+    } else {
+      _showMessage('Could not open map');
     }
   }
 
@@ -284,15 +271,13 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
     final Uri uri = Uri(scheme: 'tel', path: phoneNumber);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
-    } else if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not call $phoneNumber')));
+    } else {
+      _showMessage('Could not call $phoneNumber');
     }
   }
 
   void _openChatScreen() {
-    final currentUserId = _auth.currentUser!.uid;
+    final currentUserId = _auth.currentUser?.uid ?? "";
     final docName = '${widget.doctor.firstName} ${widget.doctor.lastName}';
     Navigator.push(
       context,
@@ -301,31 +286,28 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
           doctorId: widget.doctor.uid,
           doctorName: docName,
           patientId: currentUserId,
-          patientName: '',
+          patientName: _auth.currentUser?.displayName ?? '',
         ),
       ),
     );
   }
 
-  void _bookAppointment() async {
+  Future<void> _bookAppointment() async {
     if (_selectedDate == null ||
         _selectedTime == null ||
         _descriptionController.text.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Select a date, time, and add a description for appointment',
-            ),
-          ),
-        );
-      }
+      _showMessage('Please select date, time, and add a description');
+      return;
+    }
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      _showMessage('You must be logged in');
       return;
     }
 
     setState(() => _loading = true);
 
-    final userId = _auth.currentUser!.uid;
     final appointmentId = _appointmentsRef.push().key!;
     final dateTime = DateTime(
       _selectedDate!.year,
@@ -337,14 +319,31 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
 
     final appointmentData = {
       'id': appointmentId,
-      'patientId': userId,
+      'patientId': user.uid,
+      'patientName': user.displayName ?? 'Unknown',
       'doctorId': widget.doctor.uid,
+      'doctorName': '${widget.doctor.firstName} ${widget.doctor.lastName}',
+      'specialization': widget.doctor.category,
       'dateTime': dateTime.toIso8601String(),
       'reason': _descriptionController.text.trim(),
+      'status': 'pending',
+      'createdAt': DateTime.now().toIso8601String(),
     };
 
     try {
+      // Save in main appointments
       await _appointmentsRef.child(appointmentId).set(appointmentData);
+
+      // Save under patient
+      await FirebaseDatabase.instance
+          .ref("patients/${user.uid}/appointments/$appointmentId")
+          .set(appointmentData);
+
+      // Save under doctor
+      await FirebaseDatabase.instance
+          .ref("doctors/${widget.doctor.uid}/appointments/$appointmentId")
+          .set(appointmentData);
+
       if (!mounted) return;
 
       setState(() {
@@ -353,21 +352,17 @@ class _DoctorDetailPageState extends State<DoctorDetailPage> {
         _descriptionController.clear();
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Appointment booked successfully')),
-      );
-
-      // Optional: Navigate to PatientAppointmentsScreen automatically
-      // Navigator.pushReplacement(context,
-      //     MaterialPageRoute(builder: (context) => const PatientAppointmentsScreen()));
+      _showMessage('✅ Appointment booked successfully!');
+      Navigator.pop(context, true); // go back to appointments list
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to book appointment: $e')),
-        );
-      }
+      _showMessage('Failed to book appointment: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showMessage(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

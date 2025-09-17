@@ -1,6 +1,6 @@
 class Doctor {
   final String uid;
-  final String category; // Specialization
+  final String category; // ✅ Specialization
   final String city;
   final String email;
   final String firstName;
@@ -13,7 +13,7 @@ class Doctor {
   final double longitude;
   final int numberOfReviews;
   final int totalReviews;
-  final bool isVerified; // ✅ New field for verification
+  final bool isVerified; // ✅ Admin approval
 
   Doctor({
     required this.uid,
@@ -33,7 +33,7 @@ class Doctor {
     this.isVerified = false, // default not verified
   });
 
-  /// Factory constructor for Realtime Database snapshot
+  /// ✅ Convert Firebase snapshot into Doctor object
   factory Doctor.fromMap(Map<dynamic, dynamic> map, String uid, {required id}) {
     return Doctor(
       uid: uid,
@@ -47,15 +47,15 @@ class Doctor {
       phoneNumber: map['phoneNumber'] ?? '',
       yearsOfExperience:
           int.tryParse(map['yearsOfExperience']?.toString() ?? '0') ?? 0,
-      latitude: (map['latitude'] ?? 0).toDouble(),
-      longitude: (map['longitude'] ?? 0).toDouble(),
+      latitude: double.tryParse(map['latitude']?.toString() ?? '0') ?? 0,
+      longitude: double.tryParse(map['longitude']?.toString() ?? '0') ?? 0,
       numberOfReviews: map['numberOfReviews'] ?? 0,
       totalReviews: map['totalReviews'] ?? 0,
-      isVerified: map['isVerified'] ?? false, // ✅ read verification status
+      isVerified: map['isVerified'] ?? false,
     );
   }
 
-  /// Convert to Map for saving in Realtime DB
+  /// ✅ Convert Doctor object into Map for saving in Firebase
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
@@ -72,17 +72,17 @@ class Doctor {
       'longitude': longitude,
       'numberOfReviews': numberOfReviews,
       'totalReviews': totalReviews,
-      'isVerified': isVerified, // ✅ save verification status
+      'isVerified': isVerified,
     };
   }
 
-  /// Full name getter
+  /// ✅ Full name getter
   String get name => '$firstName $lastName';
 
-  /// Specialization alias
+  /// ✅ Specialization alias
   String get specialization => category;
 
-  /// ✅ Get a message about verification
+  /// ✅ Verification status message
   String get verificationMessage =>
       isVerified ? "You are verified ✅" : "Not verified ❌";
 }

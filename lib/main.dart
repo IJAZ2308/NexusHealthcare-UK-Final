@@ -94,6 +94,7 @@ class AuthService {
     required String role,
     String? licenseUrl,
     File? licenseFile,
+    required String specialization,
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
@@ -108,6 +109,7 @@ class AuthService {
         'role': role,
         'isVerified': role == 'doctor' ? false : true,
         'licenseUrl': licenseUrl ?? '',
+        'specialization': role == 'doctor' ? specialization : '',
       });
 
       return true;

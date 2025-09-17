@@ -106,11 +106,40 @@ class _DoctorListPageState extends State<DoctorListPage> {
                       itemCount: specialties.length,
                       itemBuilder: (context, index) {
                         final spec = specialties[index];
-                        return _buildCategoryCard(
-                          context,
-                          spec["title"]!,
-                          spec["icon"]!,
-                          isHighlighed: spec["title"] == "See All",
+                        return GestureDetector(
+                          onTap: () {
+                            if (spec["title"] == "See All") {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DoctorCategoryPage(
+                                    category: "All",
+                                    doctors: _doctors,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DoctorCategoryPage(
+                                    category: spec["title"]!,
+                                    doctors: _doctors
+                                        .where(
+                                          (d) => d.category == spec["title"],
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          child: _buildCategoryCard(
+                            context,
+                            spec["title"]!,
+                            spec["icon"]!,
+                            isHighlighed: spec["title"] == "See All",
+                          ),
                         );
                       },
                     ),
@@ -159,6 +188,43 @@ class _DoctorListPageState extends State<DoctorListPage> {
                   ),
                 ],
               ),
+            ),
+    );
+  }
+}
+
+class DoctorCategoryPage extends StatelessWidget {
+  final String category;
+  final List<Doctor> doctors;
+
+  const DoctorCategoryPage({
+    super.key,
+    required this.category,
+    required this.doctors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("$category Doctors")),
+      body: doctors.isEmpty
+          ? const Center(child: Text("No doctors found in this category"))
+          : ListView.builder(
+              itemCount: doctors.length,
+              itemBuilder: (context, index) {
+                final doctor = doctors[index];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DoctorDetailPage(doctor: doctor),
+                      ),
+                    );
+                  },
+                  child: DoctorCard(doctor: doctor),
+                );
+              },
             ),
     );
   }

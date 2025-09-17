@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class DoctorAppointmentsScreen extends StatefulWidget {
   const DoctorAppointmentsScreen({super.key});
@@ -19,6 +21,9 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
   List<Map<String, dynamic>> _appointments = [];
   bool _isLoading = true;
   final _auth = FirebaseAuth.instance;
+
+  // 🔑 Replace with your Firebase Cloud Messaging Server Key
+  static const String serverKey = "YOUR_FIREBASE_SERVER_KEY";
 
   @override
   void initState() {
@@ -69,23 +74,80 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
     }
   }
 
+  /// 🔔 Send FCM Notification to patient
+  Future<void> _sendNotification(
+    String patientId,
+    String title,
+    String body,
+  ) async {
+    try {
+      // 1. Get patient’s FCM token from DB
+      final tokenSnapshot = await FirebaseDatabase.instance
+          .ref()
+          .child("users/$patientId/fcmToken")
+          .get();
+
+      if (!tokenSnapshot.exists) return;
+      final String token = tokenSnapshot.value.toString();
+
+      // 2. Send FCM message
+      final response = await http.post(
+        Uri.parse("https://fcm.googleapis.com/fcm/send"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "key=$serverKey",
+        },
+        body: jsonEncode({
+          "to": token,
+          "notification": {"title": title, "body": body, "sound": "default"},
+          "priority": "high",
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint("❌ Failed to send notification: ${response.body}");
+      }
+    } catch (e) {
+      debugPrint("❌ Notification error: $e");
+    }
+  }
+
   /// Accept appointment
-  Future<void> _acceptAppointment(String appointmentId) async {
+  Future<void> _acceptAppointment(
+    String appointmentId,
+    String patientId,
+  ) async {
     await _appointmentDB.child(appointmentId).update({"status": "accepted"});
+    await _sendNotification(
+      patientId,
+      "Appointment Accepted",
+      "Your appointment has been accepted by the doctor.",
+    );
     _fetchAppointments();
   }
 
   /// Cancel appointment
-  Future<void> _cancelAppointment(String appointmentId) async {
+  Future<void> _cancelAppointment(
+    String appointmentId,
+    String patientId,
+  ) async {
     await _appointmentDB.child(appointmentId).update({
       "status": "cancelled",
       "cancelReason": "Cancelled by doctor",
     });
+    await _sendNotification(
+      patientId,
+      "Appointment Cancelled",
+      "Your appointment was cancelled by the doctor.",
+    );
     _fetchAppointments();
   }
 
   /// Reschedule appointment
-  Future<void> _rescheduleAppointment(String appointmentId) async {
+  Future<void> _rescheduleAppointment(
+    String appointmentId,
+    String patientId,
+  ) async {
     DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
@@ -113,6 +175,12 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
           "status": "rescheduled",
           "dateTime": newDateTime.toIso8601String(),
         });
+
+        await _sendNotification(
+          patientId,
+          "Appointment Rescheduled",
+          "Your appointment was rescheduled to ${DateFormat("EEE, dd MMM yyyy – hh:mm a").format(newDateTime)}.",
+        );
 
         _fetchAppointments();
       }
@@ -159,11 +227,11 @@ class _DoctorAppointmentsScreenState extends State<DoctorAppointmentsScreen> {
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == "accept") {
-                          _acceptAppointment(appt["id"]);
+                          _acceptAppointment(appt["id"], appt["patientId"]);
                         } else if (value == "reschedule") {
-                          _rescheduleAppointment(appt["id"]);
+                          _rescheduleAppointment(appt["id"], appt["patientId"]);
                         } else if (value == "cancel") {
-                          _cancelAppointment(appt["id"]);
+                          _cancelAppointment(appt["id"], appt["patientId"]);
                         }
                       },
                       itemBuilder: (context) => [

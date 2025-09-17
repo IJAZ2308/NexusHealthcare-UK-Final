@@ -17,6 +17,8 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _specializationController =
+      TextEditingController();
 
   File? _licenseImage;
   String error = '';
@@ -40,6 +42,10 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       setState(() => error = "Please upload your license.");
       return;
     }
+    if (_specializationController.text.trim().isEmpty) {
+      setState(() => error = "Please enter your specialization.");
+      return;
+    }
 
     setState(() {
       loading = true;
@@ -57,13 +63,14 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       return;
     }
 
-    // ✅ Step 2: Register user with licenseUrl
+    // ✅ Step 2: Register user with licenseUrl + specialization
     final bool success = await _authService.registerUser(
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
       name: _nameController.text.trim(),
       role: 'doctor',
       licenseUrl: licenseUrl,
+      specialization: _specializationController.text.trim(), // NEW FIELD
     );
 
     if (!mounted) return;
@@ -93,23 +100,38 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               if (error.isNotEmpty)
                 Text(error, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 10),
+
+              // ✅ Full Name
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Full Name"),
               ),
               const SizedBox(height: 10),
+
+              // ✅ Specialization
+              TextField(
+                controller: _specializationController,
+                decoration: const InputDecoration(labelText: "Specialization"),
+              ),
+              const SizedBox(height: 10),
+
+              // ✅ Email
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: "Email"),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 10),
+
+              // ✅ Password
               TextField(
                 controller: _passwordController,
                 decoration: const InputDecoration(labelText: "Password"),
                 obscureText: true,
               ),
               const SizedBox(height: 20),
+
+              // ✅ License Upload Preview
               _licenseImage != null
                   ? Image.file(_licenseImage!, height: 120)
                   : const Text("No license uploaded"),
@@ -118,6 +140,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
                 onPressed: _pickImage,
                 child: const Text("Upload License"),
               ),
+
               const SizedBox(height: 20),
               loading
                   ? const Center(child: CircularProgressIndicator())
@@ -137,6 +160,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _specializationController.dispose();
     super.dispose();
   }
 }
