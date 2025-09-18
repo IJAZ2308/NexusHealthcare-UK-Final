@@ -1,6 +1,7 @@
 // lib/screens/patient_dashboard.dart
 
 import 'package:dr_shahin_uk/screens/lib/screens/patient/appointment_list_page.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'package:dr_shahin_uk/screens/view_documents_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,8 +10,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'bed_list_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
-
-// ✅ Instead of Appointment model, you need an AppointmentScreen widget
 
 class PatientDashboard extends StatelessWidget {
   const PatientDashboard({super.key});
@@ -79,8 +78,7 @@ class PatientDashboard extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            const AppointmentListPage(), // ✅ Widget screen
+                        builder: (_) => const AppointmentListPage(),
                       ),
                     );
                   },
@@ -130,6 +128,20 @@ class PatientDashboard extends StatelessWidget {
                     );
                   },
                 ),
+                _dashboardCard(
+                  context,
+                  icon: Icons.folder_shared,
+                  title: "Shared Reports",
+                  color: Colors.teal,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SharedReportsScreen(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ],
@@ -149,7 +161,8 @@ class PatientDashboard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1), // ✅ replaced withValues
+          // ignore: deprecated_member_use
+          color: color.withOpacity(0.1), // ✅ fixed
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color, width: 1),
         ),
@@ -166,6 +179,7 @@ class PatientDashboard extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: color,
                 ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),

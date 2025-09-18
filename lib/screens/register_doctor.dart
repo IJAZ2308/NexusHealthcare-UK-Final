@@ -24,6 +24,9 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   String error = '';
   bool loading = false;
 
+  // ✅ Role selection: "labDoctor" or "consultingDoctor"
+  String? _selectedDoctorRole;
+
   /// Pick license image from gallery
   Future<void> _pickImage() async {
     try {
@@ -38,10 +41,16 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
 
   /// Register doctor with Firebase Auth + RTDB + Cloudinary
   Future<void> _registerDoctor() async {
+    if (_selectedDoctorRole == null) {
+      setState(() => error = "Please select your doctor role.");
+      return;
+    }
+
     if (_licenseImage == null) {
       setState(() => error = "Please upload your license.");
       return;
     }
+
     if (_specializationController.text.trim().isEmpty) {
       setState(() => error = "Please enter your specialization.");
       return;
@@ -52,7 +61,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       error = '';
     });
 
-    // ✅ Step 1: Upload license to Cloudinary
+    // Step 1: Upload license to Cloudinary
     final String? licenseUrl = await _authService.uploadLicense(_licenseImage!);
 
     if (licenseUrl == null) {
@@ -63,14 +72,14 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       return;
     }
 
-    // ✅ Step 2: Register user with licenseUrl + specialization
+    // Step 2: Register user with licenseUrl + role + specialization
     final bool success = await _authService.registerUser(
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
       name: _nameController.text.trim(),
-      role: 'doctor',
+      role: _selectedDoctorRole!, // Save selected role
       licenseUrl: licenseUrl,
-      specialization: _specializationController.text.trim(), // NEW FIELD
+      specialization: _specializationController.text.trim(),
     );
 
     if (!mounted) return;
@@ -101,21 +110,21 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
                 Text(error, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 10),
 
-              // ✅ Full Name
+              // Full Name
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Full Name"),
               ),
               const SizedBox(height: 10),
 
-              // ✅ Specialization
+              // Specialization
               TextField(
                 controller: _specializationController,
                 decoration: const InputDecoration(labelText: "Specialization"),
               ),
               const SizedBox(height: 10),
 
-              // ✅ Email
+              // Email
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: "Email"),
@@ -123,15 +132,38 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               ),
               const SizedBox(height: 10),
 
-              // ✅ Password
+              // Password
               TextField(
                 controller: _passwordController,
                 decoration: const InputDecoration(labelText: "Password"),
                 obscureText: true,
               ),
+              const SizedBox(height: 10),
+
+              // ✅ Role Selection Dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedDoctorRole,
+                decoration: const InputDecoration(
+                  labelText: "Select Doctor Role",
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: "labDoctor",
+                    child: Text("Lab Doctor"),
+                  ),
+                  DropdownMenuItem(
+                    value: "consultingDoctor",
+                    child: Text("Consulting Doctor"),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() => _selectedDoctorRole = value);
+                },
+              ),
               const SizedBox(height: 20),
 
-              // ✅ License Upload Preview
+              // License Upload Preview
               _licenseImage != null
                   ? Image.file(_licenseImage!, height: 120)
                   : const Text("No license uploaded"),
@@ -140,8 +172,9 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
                 onPressed: _pickImage,
                 child: const Text("Upload License"),
               ),
-
               const SizedBox(height: 20),
+
+              // Register Button
               loading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(

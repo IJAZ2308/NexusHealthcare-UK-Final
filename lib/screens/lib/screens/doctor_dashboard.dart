@@ -1,6 +1,7 @@
 // lib/screens/doctor_dashboard.dart
 
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -27,12 +28,28 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
   int _totalBeds = 0;
   int _availableBeds = 0;
   bool _bedsLoading = true;
+  String _doctorRole = ""; // labDoctor / consultingDoctor
+  String _doctorName = "Doctor";
 
   @override
   void initState() {
     super.initState();
+    _fetchDoctorRole();
     _fetchPatients();
     _listenBeds();
+  }
+
+  /// Fetch current doctor's role from Realtime DB
+  Future<void> _fetchDoctorRole() async {
+    final doctorId = _auth.currentUser!.uid;
+    final snapshot = await _db.child(doctorId).get();
+    if (snapshot.exists) {
+      final data = snapshot.value as Map;
+      setState(() {
+        _doctorRole = data['role'] ?? "";
+        _doctorName = data['name'] ?? "Doctor";
+      });
+    }
   }
 
   /// Listen for bed availability changes
@@ -83,7 +100,6 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
   @override
   Widget build(BuildContext context) {
     final doctorId = _auth.currentUser!.uid;
-    final doctorName = "Dr. John Doe"; // Replace with dynamic doctor name
 
     return Scaffold(
       appBar: AppBar(
@@ -95,143 +111,225 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Welcome, Doctor 👋",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              "Manage your services below:",
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 20),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              children: [
-                // Appointments card -> navigates to DoctorAppointmentsScreen
-                _dashboardCard(
-                  context,
-                  icon: Icons.event,
-                  title: "Appointments",
-                  color: Colors.green,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const DoctorAppointmentsScreen(),
-                      ),
-                    );
-                  },
-                ),
+      body: _doctorRole.isEmpty
+          ? const Center(child: CircularProgressIndicator()) // loading role
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Welcome, $_doctorName 👋",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Role: $_doctorRole",
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 20),
 
-                // Upload Reports card
-                _dashboardCard(
-                  context,
-                  icon: Icons.upload_file,
-                  title: "Upload Reports",
-                  color: Colors.red,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const UploadDocumentScreen(),
-                      ),
-                    );
-                  },
-                ),
+                  // Role-based dashboard
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    children: _doctorRole == "labDoctor"
+                        ? _buildLabDoctorCards(context, doctorId)
+                        : _buildConsultingDoctorCards(context, doctorId),
+                  ),
 
-                // Update Bed Availability card with live info
-                _dashboardCard(
-                  context,
-                  icon: Icons.bed,
-                  title: _bedsLoading
-                      ? "Loading Beds..."
-                      : "Beds: $_availableBeds / $_totalBeds",
-                  color: Colors.orange,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const UpdateBedsScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-                // Chat with first patient (if exists)
-                if (_patients.isNotEmpty)
-                  _dashboardCard(
-                    context,
-                    icon: Icons.chat,
-                    title: "Chat with ${_patients[0]['name']}",
-                    color: Colors.blue,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            doctorId: doctorId,
-                            doctorName: doctorName,
-                            patientId: _patients[0]['uid']!,
-                            patientName: _patients[0]['name']!,
-                          ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "All Patients:",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _patients.length,
+                    itemBuilder: (context, index) {
+                      final patient = _patients[index];
+                      return Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.person),
+                          title: Text(patient['name']!),
+                          trailing: const Icon(Icons.chat, color: Colors.blue),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  doctorId: doctorId,
+                                  doctorName: _doctorName,
+                                  patientId: patient['uid']!,
+                                  patientName: patient['name']!,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       );
                     },
                   ),
-              ],
+                ],
+              ),
             ),
-
-            const SizedBox(height: 20),
-            // Optional: List all patients for chat
-            const Text(
-              "All Patients:",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _patients.length,
-              itemBuilder: (context, index) {
-                final patient = _patients[index];
-                return Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.person),
-                    title: Text(patient['name']!),
-                    trailing: Icon(Icons.chat, color: Colors.blue),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            doctorId: doctorId,
-                            doctorName: doctorName,
-                            patientId: patient['uid']!,
-                            patientName: patient['name']!,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 
+  /// Cards for Lab Doctor
+  List<Widget> _buildLabDoctorCards(BuildContext context, String doctorId) {
+    return [
+      _dashboardCard(
+        context,
+        icon: Icons.upload_file,
+        title: "Upload Reports",
+        color: Colors.red,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const UploadDocumentScreen()),
+          );
+        },
+      ),
+      if (_patients.isNotEmpty)
+        _dashboardCard(
+          context,
+          icon: Icons.chat,
+          title: "Chat with ${_patients[0]['name']}",
+          color: Colors.blue,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatScreen(
+                  doctorId: doctorId,
+                  doctorName: _doctorName,
+                  patientId: _patients[0]['uid']!,
+                  patientName: _patients[0]['name']!,
+                ),
+              ),
+            );
+          },
+        ),
+    ];
+  }
+
+  /// Cards for Consulting Doctor
+  List<Widget> _buildConsultingDoctorCards(
+    BuildContext context,
+    String doctorId,
+  ) {
+    return [
+      _dashboardCard(
+        context,
+        icon: Icons.event,
+        title: "Appointments",
+        color: Colors.green,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DoctorAppointmentsScreen()),
+          );
+        },
+      ),
+      // ✅ View Reports card with patient selection
+      _dashboardCard(
+        context,
+        icon: Icons.folder_shared,
+        title: "View Reports",
+        color: Colors.purple,
+        onTap: () {
+          if (_patients.isEmpty) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text("No patients found")));
+            return;
+          }
+
+          // Show patient selection dialog
+          showDialog(
+            context: context,
+            builder: (_) {
+              return AlertDialog(
+                title: const Text("Select Patient"),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _patients.length,
+                    itemBuilder: (context, index) {
+                      final patient = _patients[index];
+                      return ListTile(
+                        title: Text(patient['name']!),
+                        onTap: () {
+                          Navigator.pop(context); // close dialog
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PatientReportsScreen(
+                                patientId: patient['uid']!,
+                                patientName: patient['name']!,
+                                doctorId: doctorId,
+                                doctorName: _doctorName,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+      _dashboardCard(
+        context,
+        icon: Icons.bed,
+        title: _bedsLoading
+            ? "Loading Beds..."
+            : "Beds: $_availableBeds / $_totalBeds",
+        color: Colors.orange,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const UpdateBedsScreen()),
+          );
+        },
+      ),
+      if (_patients.isNotEmpty)
+        _dashboardCard(
+          context,
+          icon: Icons.chat,
+          title: "Chat with ${_patients[0]['name']}",
+          color: Colors.blue,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatScreen(
+                  doctorId: doctorId,
+                  doctorName: _doctorName,
+                  patientId: _patients[0]['uid']!,
+                  patientName: _patients[0]['name']!,
+                ),
+              ),
+            );
+          },
+        ),
+    ];
+  }
+
+  /// Dashboard Card Widget
   Widget _dashboardCard(
     BuildContext context, {
     required IconData icon,

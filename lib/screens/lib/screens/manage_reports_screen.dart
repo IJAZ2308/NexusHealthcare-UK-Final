@@ -1,4 +1,5 @@
 // lib/screens/manage_reports_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,76 +12,156 @@ class ManageReportsScreen extends StatefulWidget {
 }
 
 class _ManageReportsScreenState extends State<ManageReportsScreen> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+  final DatabaseReference _reportsRef = FirebaseDatabase.instance.ref().child(
     'reports',
   );
+  final DatabaseReference _patientsRef = FirebaseDatabase.instance.ref().child(
+    'patients',
+  );
 
-  Future<void> _deleteReport(String reportId) async {
-    await _dbRef.child(reportId).remove();
+  final Map<String, String> _patientNames = {};
+  Map<String, dynamic> _reportsByPatient = {};
+  bool _loading = true;
+
+  String _searchQuery = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPatientNamesAndReports();
   }
 
-  Future<void> _openUrl(String url) async {
+  Future<void> _loadPatientNamesAndReports() async {
+    final patientsSnap = await _patientsRef.get();
+    final reportsSnap = await _reportsRef.get();
+
+    if (!mounted) return;
+
+    // Load patient names
+    if (patientsSnap.exists && patientsSnap.value != null) {
+      final data = Map<String, dynamic>.from(patientsSnap.value as Map);
+      data.forEach((key, value) {
+        _patientNames[key] = value['name'] ?? 'Unknown';
+      });
+    }
+
+    // Load reports
+    if (reportsSnap.exists && reportsSnap.value != null) {
+      setState(() {
+        _reportsByPatient = Map<String, dynamic>.from(reportsSnap.value as Map);
+        _loading = false;
+      });
+    } else {
+      setState(() {
+        _reportsByPatient = {};
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _openReport(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Cannot open report")));
     }
+  }
+
+  // Filter reports based on search query
+  Map<String, dynamic> get _filteredReports {
+    if (_searchQuery.isEmpty) return _reportsByPatient;
+
+    final filtered = <String, dynamic>{};
+
+    _reportsByPatient.forEach((patientId, reports) {
+      final patientName = _patientNames[patientId] ?? patientId;
+      final reportsMap = Map<String, dynamic>.from(reports);
+      final filteredReports = <String, dynamic>{};
+
+      reportsMap.forEach((reportId, reportData) {
+        final report = Map<String, dynamic>.from(reportData);
+        final title = report['title']?.toString().toLowerCase() ?? '';
+        if (patientName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+            title.contains(_searchQuery.toLowerCase())) {
+          filteredReports[reportId] = report;
+        }
+      });
+
+      if (filteredReports.isNotEmpty) {
+        filtered[patientId] = filteredReports;
+      }
+    });
+
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Manage Reports")),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: _dbRef.onValue,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(child: Text("No reports found"));
-          }
-
-          final Map<dynamic, dynamic> reportsMap =
-              snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-          final List<Map<dynamic, dynamic>> reports = reportsMap.entries.map((
-            e,
-          ) {
-            final data = e.value as Map<dynamic, dynamic>;
-            data['reportId'] = e.key;
-            return data;
-          }).toList();
-
-          return ListView.builder(
-            itemCount: reports.length,
-            itemBuilder: (context, index) {
-              final data = reports[index];
-              return Card(
-                margin: const EdgeInsets.all(8),
-                child: ListTile(
-                  title: Text(data['reportName']),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Patient ID: ${data['patientId']}"),
-                      Text("Uploaded on: ${data['uploadedOn']}"),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.open_in_new, color: Colors.blue),
-                        onPressed: () => _openUrl(data['reportUrl']),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.grey),
-                        onPressed: () => _deleteReport(data['reportId']),
-                      ),
-                    ],
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: "Search by patient name or report title",
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
                   ),
                 ),
-              );
-            },
-          );
-        },
-      ),
+                Expanded(
+                  child: _filteredReports.isEmpty
+                      ? const Center(child: Text("No reports found"))
+                      : ListView(
+                          children: _filteredReports.entries.map((entry) {
+                            final patientId = entry.key;
+                            final patientName =
+                                _patientNames[patientId] ?? patientId;
+                            final reports = Map<String, dynamic>.from(
+                              entry.value,
+                            );
+
+                            return ExpansionTile(
+                              title: Text(patientName),
+                              children: reports.entries.map((repEntry) {
+                                final report = Map<String, dynamic>.from(
+                                  repEntry.value,
+                                );
+                                return ListTile(
+                                  title: Text(
+                                    report['title'] ?? 'Untitled Report',
+                                  ),
+                                  subtitle: Text(
+                                    "Uploaded by: ${report['uploadedBy'] ?? 'Unknown'}\nDate: ${report['uploadedAt'] ?? 'Unknown'}",
+                                  ),
+                                  trailing: report['url'] != null
+                                      ? IconButton(
+                                          icon: const Icon(Icons.open_in_new),
+                                          onPressed: () =>
+                                              _openReport(report['url']),
+                                        )
+                                      : null,
+                                );
+                              }).toList(),
+                            );
+                          }).toList(),
+                        ),
+                ),
+              ],
+            ),
     );
   }
 }
