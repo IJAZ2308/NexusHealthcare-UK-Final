@@ -1,13 +1,86 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart'; // ✅ Added for location
 
-class BedListScreen extends StatelessWidget {
+class BedListScreen extends StatefulWidget {
+  const BedListScreen({super.key});
+
+  @override
+  State<BedListScreen> createState() => _BedListScreenState();
+}
+
+class _BedListScreenState extends State<BedListScreen> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     "hospitals",
   );
 
-  BedListScreen({super.key});
+  Position? _currentPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // ✅ Check if location services are enabled
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Location services are disabled.")),
+      );
+      return;
+    }
+
+    // ✅ Request permission
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Location permission denied.")),
+        );
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Location permissions are permanently denied."),
+        ),
+      );
+      return;
+    }
+
+    // ✅ Get current position
+    Position position = await Geolocator.getCurrentPosition(
+      // ignore: deprecated_member_use
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    setState(() {
+      _currentPosition = position;
+    });
+  }
+
+  double _calculateDistance(double lat, double lng) {
+    if (_currentPosition == null) return 0.0;
+    return Geolocator.distanceBetween(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+          lat,
+          lng,
+        ) /
+        1000; // ✅ Convert to km
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +97,6 @@ class BedListScreen extends StatelessWidget {
             return const Center(child: Text("No hospitals available"));
           }
 
-          // Convert snapshot.value into a Map
           final Map<dynamic, dynamic> hospitals =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
 
@@ -43,6 +115,8 @@ class BedListScreen extends StatelessWidget {
               final availableBeds = hospital['availableBeds'] ?? 0;
               final phone = hospital['phone'] ?? '';
               final website = hospital['website'] ?? '';
+
+              final distance = _calculateDistance(lat, lng);
 
               return Card(
                 margin: const EdgeInsets.all(10),
@@ -71,6 +145,12 @@ class BedListScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text("Available Beds: $availableBeds"),
+                          const SizedBox(height: 5),
+                          if (_currentPosition != null)
+                            Text(
+                              "Distance: ${distance.toStringAsFixed(2)} km",
+                              style: const TextStyle(color: Colors.blueGrey),
+                            ),
                           const SizedBox(height: 10),
                           Wrap(
                             spacing: 10,
