@@ -1,6 +1,6 @@
 class Doctor {
   final String uid;
-  final String category; // ✅ Specialization
+  final String category; // Specialization
   final String city;
   final String email;
   final String firstName;
@@ -13,7 +13,8 @@ class Doctor {
   final double longitude;
   final int numberOfReviews;
   final int totalReviews;
-  final bool isVerified; // ✅ Admin approval
+  final bool isVerified;
+  final String workingAt; // ✅ NEW: Hospital name where doctor works
 
   Doctor({
     required this.uid,
@@ -30,32 +31,35 @@ class Doctor {
     required this.longitude,
     required this.numberOfReviews,
     required this.totalReviews,
-    this.isVerified = false, // default not verified
+    required this.isVerified,
+    required this.workingAt,
   });
 
-  /// ✅ Convert Firebase snapshot into Doctor object
-  factory Doctor.fromMap(Map<dynamic, dynamic> map, String uid, {required id}) {
+  factory Doctor.fromMap(
+    Map<dynamic, dynamic> data,
+    String uid, {
+    required id,
+  }) {
     return Doctor(
       uid: uid,
-      category: map['category'] ?? '',
-      city: map['city'] ?? '',
-      email: map['email'] ?? '',
-      firstName: map['firstName'] ?? '',
-      lastName: map['lastName'] ?? '',
-      profileImageUrl: map['profileImageUrl'] ?? '',
-      qualification: map['qualification'] ?? '',
-      phoneNumber: map['phoneNumber'] ?? '',
-      yearsOfExperience:
-          int.tryParse(map['yearsOfExperience']?.toString() ?? '0') ?? 0,
-      latitude: double.tryParse(map['latitude']?.toString() ?? '0') ?? 0,
-      longitude: double.tryParse(map['longitude']?.toString() ?? '0') ?? 0,
-      numberOfReviews: map['numberOfReviews'] ?? 0,
-      totalReviews: map['totalReviews'] ?? 0,
-      isVerified: map['isVerified'] ?? false,
+      category: data['category'] ?? '',
+      city: data['city'] ?? '',
+      email: data['email'] ?? '',
+      firstName: data['firstName'] ?? '',
+      lastName: data['lastName'] ?? '',
+      profileImageUrl: data['profileImageUrl'] ?? '',
+      qualification: data['qualification'] ?? '',
+      phoneNumber: data['phoneNumber'] ?? '',
+      yearsOfExperience: data['yearsOfExperience'] ?? 0,
+      latitude: (data['latitude'] ?? 0).toDouble(),
+      longitude: (data['longitude'] ?? 0).toDouble(),
+      numberOfReviews: data['numberOfReviews'] ?? 0,
+      totalReviews: data['totalReviews'] ?? 0,
+      isVerified: data['isVerified'] ?? false,
+      workingAt: data['workingAt'] ?? 'Unknown Hospital', // ✅
     );
   }
 
-  /// ✅ Convert Doctor object into Map for saving in Firebase
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
@@ -73,16 +77,7 @@ class Doctor {
       'numberOfReviews': numberOfReviews,
       'totalReviews': totalReviews,
       'isVerified': isVerified,
+      'workingAt': workingAt, // ✅
     };
   }
-
-  /// ✅ Full name getter
-  String get name => '$firstName $lastName';
-
-  /// ✅ Specialization alias
-  String get specialization => category;
-
-  /// ✅ Verification status message
-  String get verificationMessage =>
-      isVerified ? "You are verified ✅" : "Not verified ❌";
 }

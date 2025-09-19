@@ -48,6 +48,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
               'doctorId': value['doctorId'] ?? '',
               'doctorName': value['doctorName'] ?? '',
               'specialization': value['specialization'] ?? '',
+              'workingAt': value['workingAt'] ?? 'Unknown Hospital',
               'timestamp': value['dateTime'] ?? '',
               'status': value['status'] ?? 'pending',
               'cancelReason': value['cancelReason'] ?? '',
@@ -132,8 +133,9 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
       // ✅ Save appointment in Firebase
       final newAppt = {
         'doctorId': selectedDoctor.uid,
-        'doctorName': selectedDoctor.name,
-        'specialization': selectedDoctor.specialization,
+        'doctorName': "${selectedDoctor.firstName} ${selectedDoctor.lastName}",
+        'specialization': selectedDoctor.category,
+        'workingAt': selectedDoctor.workingAt,
         'patientId': _currentUserId,
         'dateTime': appointmentDateTime.toIso8601String(),
         'status': 'pending',
@@ -192,7 +194,8 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(appt['specialization']),
+                        Text("🏥 ${appt['workingAt']}"),
+                        Text("💼 ${appt['specialization']}"),
                         const SizedBox(height: 4),
                         Text("📅 Date: $formattedDate"),
                         Text(
@@ -213,7 +216,10 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
                     trailing: appt['status'] == 'cancelled'
                         ? null
                         : IconButton(
-                            icon: const Icon(Icons.cancel, color: Colors.red),
+                            icon: const Icon(
+                              Icons.cancel,
+                              color: Colors.redAccent,
+                            ),
                             onPressed: () {
                               _cancelAppointment(appt['id']);
                             },

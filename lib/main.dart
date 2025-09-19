@@ -9,6 +9,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
 import 'package:dr_shahin_uk/screens/auth/login_screen.dart';
+import 'package:dr_shahin_uk/services/database_service.dart';
+
+final DatabaseService dbService = DatabaseService();
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

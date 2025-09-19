@@ -1,6 +1,6 @@
 // lib/screens/doctor_dashboard.dart
 
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_chatlist_page.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,6 +9,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'update_beds_screen.dart';
 import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
 
 class DoctorDashboard extends StatefulWidget {
   const DoctorDashboard({super.key});
@@ -199,26 +200,18 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
           );
         },
       ),
-      if (_patients.isNotEmpty)
-        _dashboardCard(
-          context,
-          icon: Icons.chat,
-          title: "Chat with ${_patients[0]['name']}",
-          color: Colors.blue,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ChatScreen(
-                  doctorId: doctorId,
-                  doctorName: _doctorName,
-                  patientId: _patients[0]['uid']!,
-                  patientName: _patients[0]['name']!,
-                ),
-              ),
-            );
-          },
-        ),
+      _dashboardCard(
+        context,
+        icon: Icons.chat,
+        title: "Chats",
+        color: Colors.blue,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DoctorChatlistPage()),
+          );
+        },
+      ),
     ];
   }
 
@@ -240,7 +233,6 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
           );
         },
       ),
-      // ✅ View Reports card with patient selection
       _dashboardCard(
         context,
         icon: Icons.folder_shared,
@@ -306,26 +298,18 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
           );
         },
       ),
-      if (_patients.isNotEmpty)
-        _dashboardCard(
-          context,
-          icon: Icons.chat,
-          title: "Chat with ${_patients[0]['name']}",
-          color: Colors.blue,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ChatScreen(
-                  doctorId: doctorId,
-                  doctorName: _doctorName,
-                  patientId: _patients[0]['uid']!,
-                  patientName: _patients[0]['name']!,
-                ),
-              ),
-            );
-          },
-        ),
+      _dashboardCard(
+        context,
+        icon: Icons.chat,
+        title: "Chats",
+        color: Colors.blue,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DoctorChatlistPage()),
+          );
+        },
+      ),
     ];
   }
 
