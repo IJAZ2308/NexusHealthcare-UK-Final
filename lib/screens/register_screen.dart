@@ -36,7 +36,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       name: nameController.text.trim(),
       role: role,
       licenseFile: role == 'doctor' ? licenseFile : null,
-      specialization: '', // only for doctors
+      specialization: '',
+      isVerified: false, // only for doctors
     );
 
     if (!mounted) return;

@@ -98,6 +98,7 @@ class AuthService {
     String? licenseUrl,
     File? licenseFile,
     required String specialization,
+    required bool isVerified,
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(

@@ -1,15 +1,16 @@
-// lib/screens/doctor_dashboard.dart
+// lib/screens/lib/screens/doctor_dashboard.dart
 
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_chatlist_page.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
+import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
+import 'doctor/doctor_appointments_screen.dart';
+import '../../upload_document_screen.dart';
+
 import 'update_beds_screen.dart';
-import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
 
 class DoctorDashboard extends StatefulWidget {
   const DoctorDashboard({super.key});
@@ -40,7 +41,6 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
     _listenBeds();
   }
 
-  /// Fetch current doctor's role from Realtime DB
   Future<void> _fetchDoctorRole() async {
     final doctorId = _auth.currentUser!.uid;
     final snapshot = await _db.child(doctorId).get();
@@ -53,7 +53,6 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
     }
   }
 
-  /// Listen for bed availability changes
   void _listenBeds() {
     _bedsRef.onValue.listen((event) {
       if (mounted) {
@@ -84,10 +83,7 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
       patientsMap.forEach((key, value) {
         loadedPatients.add({'uid': key, 'name': value['name'] ?? 'Patient'});
       });
-
-      setState(() {
-        _patients = loadedPatients;
-      });
+      setState(() => _patients = loadedPatients);
     }
   }
 
@@ -104,7 +100,12 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Doctor Dashboard"),
+        title: Text(
+          _doctorRole == "labDoctor"
+              ? "Lab Doctor Dashboard"
+              : "Consulting Doctor Dashboard",
+        ),
+        backgroundColor: const Color(0xff0064FA),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -113,7 +114,7 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
         ],
       ),
       body: _doctorRole.isEmpty
-          ? const Center(child: CircularProgressIndicator()) // loading role
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -133,7 +134,7 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Role-based dashboard
+                  // Role-based dashboard cards
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -185,7 +186,7 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
     );
   }
 
-  /// Cards for Lab Doctor
+  /// Lab Doctor Cards
   List<Widget> _buildLabDoctorCards(BuildContext context, String doctorId) {
     return [
       _dashboardCard(
@@ -215,7 +216,7 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
     ];
   }
 
-  /// Cards for Consulting Doctor
+  /// Consulting Doctor Cards
   List<Widget> _buildConsultingDoctorCards(
     BuildContext context,
     String doctorId,
@@ -245,8 +246,6 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
             ).showSnackBar(const SnackBar(content: Text("No patients found")));
             return;
           }
-
-          // Show patient selection dialog
           showDialog(
             context: context,
             builder: (_) {
@@ -262,7 +261,7 @@ class _DoctorDashboardState extends State<DoctorDashboard> {
                       return ListTile(
                         title: Text(patient['name']!),
                         onTap: () {
-                          Navigator.pop(context); // close dialog
+                          Navigator.pop(context);
                           Navigator.push(
                             context,
                             MaterialPageRoute(

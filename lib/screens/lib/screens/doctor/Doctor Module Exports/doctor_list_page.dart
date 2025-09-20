@@ -1,6 +1,8 @@
+// lib/screens/patient/doctor_list_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/models/doctor.dart';
+import '../../models/doctor.dart';
 import 'doctor_details_page.dart';
 import 'doctor_card.dart';
 
@@ -12,9 +14,10 @@ class DoctorListPage extends StatefulWidget {
 }
 
 class _DoctorListPageState extends State<DoctorListPage> {
-  final DatabaseReference _database = FirebaseDatabase.instance.ref().child(
-    'Doctors',
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+    "users",
   );
+
   List<Doctor> _doctors = [];
   bool _isLoading = true;
 
@@ -50,14 +53,15 @@ class _DoctorListPageState extends State<DoctorListPage> {
   }
 
   Future<void> _fetchDoctors() async {
-    final snapshot = await _database.once();
+    final snapshot = await _dbRef.orderByChild("role").equalTo("doctor").get();
     List<Doctor> tmpDoctors = [];
-    if (snapshot.snapshot.value != null) {
-      Map<dynamic, dynamic> values =
-          snapshot.snapshot.value as Map<dynamic, dynamic>;
+    if (snapshot.value != null) {
+      Map<dynamic, dynamic> values = snapshot.value as Map<dynamic, dynamic>;
       values.forEach((key, value) {
-        Doctor doctor = Doctor.fromMap(value, key, id: key);
-        tmpDoctors.add(doctor);
+        Doctor doctor = Doctor.fromMap(value, key, id: null);
+        if (doctor.isVerified) {
+          tmpDoctors.add(doctor);
+        }
       });
     }
     setState(() {
@@ -77,12 +81,12 @@ class _DoctorListPageState extends State<DoctorListPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 30.0),
+                  const SizedBox(height: 20.0),
                   const Text(
                     'Find your doctor,\nand book an appointment',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 20),
                   const Text(
                     'Find Doctor by Category',
                     style: TextStyle(
@@ -92,6 +96,8 @@ class _DoctorListPageState extends State<DoctorListPage> {
                     ),
                   ),
                   const SizedBox(height: 16.0),
+
+                  // Categories Grid
                   SizedBox(
                     height: 250,
                     child: GridView.builder(
@@ -135,16 +141,17 @@ class _DoctorListPageState extends State<DoctorListPage> {
                             }
                           },
                           child: _buildCategoryCard(
-                            context,
                             spec["title"]!,
                             spec["icon"]!,
-                            isHighlighed: spec["title"] == "See All",
+                            isHighlighted: spec["title"] == "See All",
                           ),
                         );
                       },
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 20),
+
+                  // Top Doctors section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: const [
@@ -166,25 +173,28 @@ class _DoctorListPageState extends State<DoctorListPage> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: _doctors.length,
-                      itemBuilder: (context, index) {
-                        final doctor = _doctors[index];
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    DoctorDetailPage(doctor: doctor),
-                              ),
-                            );
-                          },
-                          child: DoctorCard(doctor: doctor),
-                        );
-                      },
-                    ),
+                    child: _doctors.isEmpty
+                        ? const Center(child: Text("No approved doctors yet"))
+                        : ListView.builder(
+                            itemCount: _doctors.length,
+                            itemBuilder: (context, index) {
+                              final doctor = _doctors[index];
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          DoctorDetailPage(doctor: doctor),
+                                    ),
+                                  );
+                                },
+                                child: DoctorCard(doctor: doctor),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -231,21 +241,20 @@ class DoctorCategoryPage extends StatelessWidget {
 }
 
 Widget _buildCategoryCard(
-  BuildContext context,
   String title,
   dynamic icon, {
-  bool isHighlighed = false,
+  bool isHighlighted = false,
 }) {
   return Container(
     decoration: BoxDecoration(
-      color: isHighlighed ? const Color(0xff006AFA) : const Color(0xffF0EFFF),
+      color: isHighlighted ? const Color(0xff006AFA) : const Color(0xffF0EFFF),
       borderRadius: BorderRadius.circular(15),
-      border: isHighlighed
+      border: isHighlighted
           ? null
           : Border.all(color: const Color(0xffC8C4FF), width: 2),
     ),
     child: Card(
-      color: isHighlighed ? const Color(0xff006AFA) : const Color(0xffF0EFFF),
+      color: isHighlighted ? const Color(0xff006AFA) : const Color(0xffF0EFFF),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
@@ -253,25 +262,26 @@ Widget _buildCategoryCard(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon is IconData)
-              Icon(
-                icon,
-                size: 40,
-                color: isHighlighed ? Colors.white : const Color(0xff006AFA),
-              )
-            else
-              Image.asset(
-                icon,
-                width: 40,
-                height: 40,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Icon(
-                    Icons.image_not_supported,
+            icon is IconData
+                ? Icon(
+                    icon,
                     size: 40,
-                    color: Colors.grey,
-                  );
-                },
-              ),
+                    color: isHighlighted
+                        ? Colors.white
+                        : const Color(0xff006AFA),
+                  )
+                : Image.asset(
+                    icon,
+                    width: 40,
+                    height: 40,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.image_not_supported,
+                        size: 40,
+                        color: Colors.grey,
+                      );
+                    },
+                  ),
             const SizedBox(height: 16),
             Text(
               title,
@@ -279,7 +289,7 @@ Widget _buildCategoryCard(
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: isHighlighed ? Colors.white : const Color(0xff006AFA),
+                color: isHighlighted ? Colors.white : const Color(0xff006AFA),
               ),
             ),
           ],

@@ -24,7 +24,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   String error = '';
   bool loading = false;
 
-  // ✅ Role selection: "labDoctor" or "consultingDoctor"
+  // Role selection: "labDoctor" or "consultingDoctor"
   String? _selectedDoctorRole;
 
   /// Pick license image from gallery
@@ -61,39 +61,46 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       error = '';
     });
 
-    // Step 1: Upload license to Cloudinary
-    final String? licenseUrl = await _authService.uploadLicense(_licenseImage!);
-
-    if (licenseUrl == null) {
-      setState(() {
-        loading = false;
-        error = "License upload failed. Please try again.";
-      });
-      return;
-    }
-
-    // Step 2: Register user with licenseUrl + role + specialization
-    final bool success = await _authService.registerUser(
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-      name: _nameController.text.trim(),
-      role: _selectedDoctorRole!, // Save selected role
-      licenseUrl: licenseUrl,
-      specialization: _specializationController.text.trim(),
-    );
-
-    if (!mounted) return;
-
-    if (success) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const VerifyPending()),
+    try {
+      // Step 1: Upload license to Cloudinary
+      final String? licenseUrl = await _authService.uploadLicense(
+        _licenseImage!,
       );
-    } else {
-      setState(() => error = 'Registration failed. Please try again.');
-    }
 
-    setState(() => loading = false);
+      if (licenseUrl == null) {
+        setState(() {
+          loading = false;
+          error = "License upload failed. Please try again.";
+        });
+        return;
+      }
+
+      // Step 2: Register user with Firebase Auth
+      final bool success = await _authService.registerUser(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        name: _nameController.text.trim(),
+        role: _selectedDoctorRole!,
+        licenseUrl: licenseUrl,
+        specialization: _specializationController.text.trim(),
+        isVerified: false, // ✅ mark doctor as pending verification
+      );
+
+      if (!mounted) return;
+
+      if (success) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const VerifyPending()),
+        );
+      } else {
+        setState(() => error = 'Registration failed. Please try again.');
+      }
+    } catch (e) {
+      setState(() => error = 'Error: $e');
+    } finally {
+      setState(() => loading = false);
+    }
   }
 
   @override
@@ -140,7 +147,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               ),
               const SizedBox(height: 10),
 
-              // ✅ Role Selection Dropdown
+              // Role Selection Dropdown
               DropdownButtonFormField<String>(
                 value: _selectedDoctorRole,
                 decoration: const InputDecoration(

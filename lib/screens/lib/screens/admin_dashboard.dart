@@ -1,3 +1,4 @@
+import 'package:dr_shahin_uk/screens/lib/screens/verify_doctors_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart'; // ✅ Used for date formatting
@@ -292,9 +293,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
             _buildNavigationCard(
               "Verify Pending Doctors ($pendingDoctors)",
               () {
-                // Navigate to doctor approval screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const VerifyDoctorsScreen(),
+                  ),
+                );
               },
             ),
+
             const SizedBox(height: 20),
             _isLoadingAppointments
                 ? const Center(child: CircularProgressIndicator())

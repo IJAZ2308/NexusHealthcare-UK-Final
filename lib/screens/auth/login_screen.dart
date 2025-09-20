@@ -2,7 +2,8 @@
 
 import 'package:dr_shahin_uk/screens/auth/register_selection.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/admin_dashboard.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard_lab.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard_consulting.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/patient_dashboard.dart';
 import 'package:dr_shahin_uk/screens/shared/verify_pending.dart';
 import 'package:flutter/material.dart';
@@ -56,31 +57,33 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final data = Map<String, dynamic>.from(snapshot.value as Map);
-
-      String role = data['role'] ?? '';
-      bool verified = data['isVerified'] ?? true;
+      final String role = data['role'] ?? '';
+      final bool verified = data['isVerified'] ?? false;
 
       if (!mounted) return;
 
-      if (role == 'doctor' && !verified) {
+      // Role → dashboard mapping
+      final Map<String, Widget> dashboardMap = {
+        'labDoctor': const LabDoctorDashboard(),
+        'consultingDoctor': const ConsultingDoctorDashboard(),
+        'patient': const PatientDashboard(),
+        'admin': const AdminDashboard(),
+      };
+
+      // Unverified doctors
+      if ((role == 'labDoctor' || role == 'consultingDoctor') && !verified) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const VerifyPending()),
         );
-      } else if (role == 'doctor' && verified) {
+        return;
+      }
+
+      // Navigate to respective dashboard
+      if (dashboardMap.containsKey(role)) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const DoctorDashboard()),
-        );
-      } else if (role == 'patient') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const PatientDashboard()),
-        );
-      } else if (role == 'admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+          MaterialPageRoute(builder: (_) => dashboardMap[role]!),
         );
       } else {
         setState(() => error = 'Unknown role. Contact admin.');
@@ -122,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        backgroundColor: const Color(0xffF8F2FF), // 🔹 lavender background
+        backgroundColor: const Color(0xffF8F2FF),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : SafeArea(
@@ -134,11 +137,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // 🔹 Logo
                           Image.asset('assets/images/login1.png', height: 120),
                           const SizedBox(height: 20),
-
-                          // 🔹 Welcome text
                           const Text(
                             'Welcome!',
                             style: TextStyle(
@@ -158,15 +158,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 30),
-
                           if (error.isNotEmpty)
                             Text(
                               error,
                               style: const TextStyle(color: Colors.red),
                               textAlign: TextAlign.center,
                             ),
+                          const SizedBox(height: 10),
 
-                          // 🔹 Email Field
+                          // Email
                           SizedBox(
                             height: 50,
                             child: TextFormField(
@@ -183,14 +183,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               keyboardType: TextInputType.emailAddress,
-                              onChanged: (val) => email = val,
+                              onChanged: (val) {
+                                email = val;
+                                if (error.isNotEmpty) {
+                                  setState(() => error = "");
+                                }
+                              },
                               validator: (val) =>
                                   val!.isEmpty ? 'Enter an email' : null,
                             ),
                           ),
                           const SizedBox(height: 10),
 
-                          // 🔹 Password Field
+                          // Password
                           SizedBox(
                             height: 50,
                             child: TextFormField(
@@ -220,14 +225,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               obscureText: _obscureText,
-                              onChanged: (val) => password = val,
+                              onChanged: (val) {
+                                password = val;
+                                if (error.isNotEmpty) {
+                                  setState(() => error = "");
+                                }
+                              },
                               validator: (val) => val!.length < 6
                                   ? 'Password must be at least 6 characters'
                                   : null,
                             ),
                           ),
 
-                          // 🔹 Forgot Password
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
@@ -244,7 +253,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 10),
 
-                          // 🔹 Login Button
+                          // Login Button
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
@@ -271,7 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // 🔹 Register Link
+                          // Register Navigation
                           TextButton(
                             onPressed: () {
                               Navigator.of(context).push(

@@ -41,7 +41,7 @@ dev_dependencies:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/icon/app_icon.png"  # ✅ Make sure this file exists
+  image_path: "assets/app_icon.jpeg"  # ✅ Make sure this file exists
 
 flutter:
   uses-material-design: true

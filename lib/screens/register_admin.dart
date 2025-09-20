@@ -23,7 +23,8 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
       name: nameController.text.trim(),
       role: 'admin',
       licenseFile: null,
-      specialization: '', // Admin doesn’t need license
+      specialization: '',
+      isVerified: true, // Admin doesn’t need license
     );
 
     if (!mounted) return;
