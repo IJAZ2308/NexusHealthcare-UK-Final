@@ -2,11 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
-import 'package:dr_shahin_uk/screens/lib/screens/admin_dashboard.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/patient_dashboard.dart';
 import '../auth/login_screen.dart';
-import '../../screens/shared/verify_pending.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/admin_dashboard.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard_lab.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard_consulting.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/patient_dashboard.dart';
+import 'verify_pending.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -38,11 +39,9 @@ class SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // Fetch user data from Realtime Database
     final snapshot = await _db.child("users/${user.uid}").get();
-
     if (!snapshot.exists) {
-      _auth.signOut();
+      await _auth.signOut();
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -53,44 +52,63 @@ class SplashScreenState extends State<SplashScreen> {
 
     final data = Map<String, dynamic>.from(snapshot.value as Map);
 
-    final role = data['role'];
-    final approved = data['approved'] ?? true;
+    final String role = data['role'] ?? '';
+    final bool verified = data['isVerified'] ?? true; // doctor verification
 
     if (!mounted) return;
 
-    if (role == 'admin') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminDashboard()),
-      );
-    } else if (role == 'doctor') {
-      if (!approved) {
+    switch (role) {
+      case 'admin':
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const VerifyPending()),
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
         );
-      } else {
+        break;
+      case 'labDoctor':
+        if (!verified) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const VerifyPending()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LabDoctorDashboard()),
+          );
+        }
+        break;
+      case 'consultingDoctor':
+        if (!verified) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const VerifyPending()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ConsultingDoctorDashboard(),
+            ),
+          );
+        }
+        break;
+      case 'patient':
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const DoctorDashboard()),
+          MaterialPageRoute(builder: (_) => const PatientDashboard()),
         );
-      }
-    } else if (role == 'patient') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const PatientDashboard()),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+        break;
+      default:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       body: Center(
         child: Text(
           "MediBridge360",

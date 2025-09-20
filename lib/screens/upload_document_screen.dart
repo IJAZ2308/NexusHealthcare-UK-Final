@@ -5,9 +5,19 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:path/path.dart' as path;
 
 class UploadDocumentScreen extends StatefulWidget {
-  const UploadDocumentScreen({super.key});
+  final String patientId;
+  final String patientName;
+
+  const UploadDocumentScreen({
+    super.key,
+    required this.patientId,
+    required this.patientName,
+    required String doctorId,
+  });
 
   @override
   State<UploadDocumentScreen> createState() => _UploadDocumentScreenState();
@@ -17,9 +27,10 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
   File? _selectedFile;
   final TextEditingController _docTitleController = TextEditingController();
   bool _isUploading = false;
+  double _progress = 0.0;
 
-  final String cloudName = "dij8c34qm"; // ✅ hardcoded cloud name
-  final String uploadPreset = "medi360_unsigned"; // ✅ unsigned preset
+  final String cloudName = "dij8c34qm"; // Cloudinary cloud name
+  final String uploadPreset = "medi360_unsigned"; // Unsigned preset
 
   /// Pick file from device
   Future<void> _pickFile() async {
@@ -31,80 +42,116 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
     }
   }
 
-  /// Upload document to Cloudinary and save metadata to Firebase
+  /// Upload document to Cloudinary with progress
   Future<void> _uploadFile() async {
     if (_selectedFile == null || _docTitleController.text.isEmpty) return;
 
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("User not logged in!")));
+      return;
+    }
+    final String doctorId = currentUser.uid;
+
     setState(() {
       _isUploading = true;
+      _progress = 0.0;
     });
 
     try {
-      // ✅ Hardcoded Cloudinary upload URL
-      final Uri uploadUrl = Uri.parse(
-        "https://api.cloudinary.com/v1_1/dij8c34qm/auto/upload", // ✅ hardcoded
+      final uri = Uri.parse(
+        "https://api.cloudinary.com/v1_1/dij8c34qm/auto/upload",
       );
-
-      var request = http.MultipartRequest("POST", uploadUrl);
+      final request = http.MultipartRequest("POST", uri);
       request.fields['upload_preset'] = uploadPreset;
+
+      final fileName = path.basename(_selectedFile!.path);
       request.files.add(
-        await http.MultipartFile.fromPath('file', _selectedFile!.path),
+        await http.MultipartFile.fromPath(
+          'file',
+          _selectedFile!.path,
+          filename: fileName,
+          contentType: MediaType('application', 'octet-stream'),
+        ),
       );
 
-      var response = await request.send();
+      // Send request as streamed to track progress
+      final streamedResponse = await request.send();
 
-      if (response.statusCode == 200) {
-        final responseData = await response.stream.bytesToString();
-        final data = json.decode(responseData);
-        final String fileUrl = data['secure_url'];
+      // Track progress
+      streamedResponse.stream
+          .transform(utf8.decoder)
+          .listen(
+            (value) async {
+              // Wait for full response to parse JSON
+              final data = json.decode(value);
+              final String fileUrl = data['secure_url'];
 
-        // Save metadata to Firebase
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          DatabaseReference dbRef = FirebaseDatabase.instance.ref(
-            "doctor_documents/${user.uid}",
+              // Save metadata for both doctor and patient
+              DatabaseReference doctorRef = FirebaseDatabase.instance.ref(
+                "doctor_documents/$doctorId/${widget.patientId}",
+              );
+              DatabaseReference patientRef = FirebaseDatabase.instance.ref(
+                "patient_documents/${widget.patientId}/$doctorId",
+              );
+
+              final Map<String, dynamic> metadata = {
+                "title": _docTitleController.text,
+                "fileUrl": fileUrl,
+                "uploadedAt": DateTime.now().toIso8601String(),
+                "patientName": widget.patientName,
+                "doctorId": doctorId,
+              };
+
+              await doctorRef.push().set(metadata);
+              await patientRef.push().set(metadata);
+
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("File uploaded successfully!")),
+              );
+
+              _docTitleController.clear();
+              setState(() {
+                _selectedFile = null;
+                _isUploading = false;
+                _progress = 0.0;
+              });
+            },
+            onDone: () {},
+            onError: (e) {
+              // ignore: use_build_context_synchronously
+              ScaffoldMessenger.of(
+                // ignore: use_build_context_synchronously
+                context,
+              ).showSnackBar(SnackBar(content: Text("Upload error: $e")));
+              setState(() {
+                _isUploading = false;
+                _progress = 0.0;
+              });
+            },
           );
-          await dbRef.push().set({
-            "title": _docTitleController.text,
-            "fileUrl": fileUrl,
-            "uploadedAt": DateTime.now().toIso8601String(),
-          });
-        }
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("File uploaded successfully!")),
-        );
-
-        // Reset fields
-        _docTitleController.clear();
-        setState(() {
-          _selectedFile = null;
-        });
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Upload failed: ${response.statusCode}")),
-        );
-      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Error: $e")));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-        });
-      }
+      setState(() {
+        _isUploading = false;
+        _progress = 0.0;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Upload Document")),
+      appBar: AppBar(
+        title: Text("Upload Document for ${widget.patientName}"),
+        backgroundColor: const Color(0xff0064FA),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -122,7 +169,13 @@ class _UploadDocumentScreenState extends State<UploadDocumentScreen> {
             ),
             const SizedBox(height: 20),
             _isUploading
-                ? const CircularProgressIndicator()
+                ? Column(
+                    children: [
+                      LinearProgressIndicator(value: _progress),
+                      const SizedBox(height: 10),
+                      Text("${(_progress * 100).toStringAsFixed(0)}%"),
+                    ],
+                  )
                 : ElevatedButton(
                     onPressed: _uploadFile,
                     child: const Text("Upload Document"),
