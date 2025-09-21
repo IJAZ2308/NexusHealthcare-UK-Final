@@ -1,11 +1,12 @@
+// lib/screens/doctor_dashboard_consulting.dart
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../upload_document_screen.dart';
-import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
 
-import 'doctor/doctor_appointments_screen.dart';
+import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
 
 class ConsultingDoctorDashboard extends StatefulWidget {
   const ConsultingDoctorDashboard({super.key});
@@ -19,17 +20,21 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _db = FirebaseDatabase.instance.ref().child('users');
 
+  String _doctorName = "Consulting Doctor";
   List<Map<String, String>> _patients = [];
   List<Map<String, String>> _appointments = [];
-  String _doctorName = "Doctor";
   bool _loadingAppointments = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchDoctorData();
-    _fetchPatients();
-    _fetchAppointments();
+    _initDoctor();
+  }
+
+  Future<void> _initDoctor() async {
+    await _fetchDoctorData();
+    await _fetchPatients();
+    await _fetchAppointments();
   }
 
   Future<void> _fetchDoctorData() async {
@@ -39,7 +44,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
       if (snapshot.exists) {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
         setState(() {
-          _doctorName = data['name'] ?? "Doctor";
+          _doctorName = data['name'] ?? "Consulting Doctor";
         });
       }
     }
@@ -47,17 +52,15 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
 
   Future<void> _fetchPatients() async {
     final snapshot = await _db.orderByChild('role').equalTo('patient').get();
+    final List<Map<String, String>> loadedPatients = [];
     if (snapshot.exists) {
       final Map<dynamic, dynamic> patientsMap =
           snapshot.value as Map<dynamic, dynamic>;
-      final List<Map<String, String>> loadedPatients = [];
       patientsMap.forEach((key, value) {
         loadedPatients.add({'uid': key, 'name': value['name'] ?? 'Patient'});
       });
-      setState(() {
-        _patients = loadedPatients;
-      });
     }
+    setState(() => _patients = loadedPatients);
   }
 
   Future<void> _fetchAppointments() async {
@@ -70,7 +73,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
         .get();
 
     final List<Map<String, String>> loadedAppointments = [];
-
     if (snapshot.exists) {
       final Map<dynamic, dynamic> dataMap =
           snapshot.value as Map<dynamic, dynamic>;
@@ -84,7 +86,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
         });
       });
     }
-
     setState(() {
       _appointments = loadedAppointments;
       _loadingAppointments = false;
@@ -97,15 +98,8 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     Navigator.pushReplacementNamed(context, '/login');
   }
 
-  /// Pick patient for uploading a report
   void _pickPatientAndUpload() {
-    if (_patients.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No patients available")));
-      return;
-    }
-
+    if (_patients.isEmpty) return;
     showDialog(
       context: context,
       builder: (_) {
@@ -143,10 +137,8 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     );
   }
 
-  /// Pick patient for viewing reports
   void _pickPatientToViewReports() {
     if (_patients.isEmpty) return;
-
     showDialog(
       context: context,
       builder: (_) {
@@ -200,7 +192,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // Dashboard cards
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -208,9 +199,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 children: [
-                  // Appointments
                   _dashboardCard(
-                    context,
                     icon: Icons.event,
                     title: "Appointments",
                     color: Colors.green,
@@ -223,25 +212,19 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                       );
                     },
                   ),
-                  // Upload Reports (Patient-specific)
                   _dashboardCard(
-                    context,
                     icon: Icons.upload_file,
                     title: "Upload Reports",
                     color: Colors.red,
                     onTap: _pickPatientAndUpload,
                   ),
-                  // View Reports (Patient-specific)
                   _dashboardCard(
-                    context,
                     icon: Icons.folder_shared,
                     title: "View Reports",
                     color: Colors.purple,
                     onTap: _pickPatientToViewReports,
                   ),
-                  // Chats
                   _dashboardCard(
-                    context,
                     icon: Icons.chat,
                     title: "Chats",
                     color: Colors.blue,
@@ -257,15 +240,11 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                 ],
               ),
               const SizedBox(height: 20),
-              // Upcoming appointments
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
+                child: const Text(
                   "Upcoming Appointments:",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(height: 10),
@@ -297,8 +276,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     );
   }
 
-  Widget _dashboardCard(
-    BuildContext context, {
+  Widget _dashboardCard({
     required IconData icon,
     required String title,
     required Color color,

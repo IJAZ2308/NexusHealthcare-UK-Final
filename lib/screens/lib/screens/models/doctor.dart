@@ -14,7 +14,8 @@ class Doctor {
   final int numberOfReviews;
   final int totalReviews;
   final bool isVerified;
-  final String workingAt; // ✅ NEW: Hospital name where doctor works
+  final String workingAt; // ✅ Hospital name where doctor works
+  final String status; // ✅ New field (pending / approved / rejected)
 
   Doctor({
     required this.uid,
@@ -33,6 +34,7 @@ class Doctor {
     required this.totalReviews,
     required this.isVerified,
     required this.workingAt,
+    required this.status, // ✅ Add here
   });
 
   factory Doctor.fromMap(
@@ -56,7 +58,8 @@ class Doctor {
       numberOfReviews: data['numberOfReviews'] ?? 0,
       totalReviews: data['totalReviews'] ?? 0,
       isVerified: data['isVerified'] ?? false,
-      workingAt: data['workingAt'] ?? 'Unknown Hospital', // ✅
+      workingAt: data['workingAt'] ?? 'Unknown Hospital',
+      status: data['status'] ?? 'pending', // ✅ default to pending
     );
   }
 
@@ -77,7 +80,8 @@ class Doctor {
       'numberOfReviews': numberOfReviews,
       'totalReviews': totalReviews,
       'isVerified': isVerified,
-      'workingAt': workingAt, // ✅
+      'workingAt': workingAt,
+      'status': status, // ✅ include it
     };
   }
 }

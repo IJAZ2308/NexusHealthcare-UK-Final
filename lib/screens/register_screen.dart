@@ -37,7 +37,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       role: role,
       licenseFile: role == 'doctor' ? licenseFile : null,
       specialization: '',
-      isVerified: false, // only for doctors
+      isVerified: false,
+      doctorType: '',
+      s: '', // only for doctors
     );
 
     if (!mounted) return;

@@ -24,7 +24,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   String error = '';
   bool loading = false;
 
-  // Role selection: "labDoctor" or "consultingDoctor"
+  /// Role selection: "labDoctor" or "consultingDoctor"
   String? _selectedDoctorRole;
 
   /// Pick license image from gallery
@@ -80,15 +80,18 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         name: _nameController.text.trim(),
-        role: _selectedDoctorRole!,
+        role: "doctor",
+        s: _selectedDoctorRole!, // labDoctor or consultingDoctor
         licenseUrl: licenseUrl,
         specialization: _specializationController.text.trim(),
-        isVerified: false, // ✅ mark doctor as pending verification
+        isVerified: false,
+        doctorType: '', // ✅ mark doctor as pending verification
       );
 
       if (!mounted) return;
 
       if (success) {
+        // Navigate to pending verification screen
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const VerifyPending()),

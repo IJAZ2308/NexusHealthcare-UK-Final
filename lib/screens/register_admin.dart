@@ -24,7 +24,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
       role: 'admin',
       licenseFile: null,
       specialization: '',
-      isVerified: true, // Admin doesn’t need license
+      isVerified: true,
+      doctorType: '',
+      s: '', // Admin doesn’t need license
     );
 
     if (!mounted) return;

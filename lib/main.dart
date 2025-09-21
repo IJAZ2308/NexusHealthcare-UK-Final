@@ -99,6 +99,8 @@ class AuthService {
     File? licenseFile,
     required String specialization,
     required bool isVerified,
+    required String doctorType,
+    required String s,
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(

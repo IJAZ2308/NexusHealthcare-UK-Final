@@ -1,9 +1,11 @@
+// lib/screens/patient/patient_appointments_screen.dart
+
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
-import 'doctor/Doctor Module Exports/doctor_list_page.dart';
 import 'models/doctor.dart';
 
 class PatientAppointmentsScreen extends StatefulWidget {
@@ -29,7 +31,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     _fetchAppointments();
   }
 
-  /// ✅ Fetch only the current patient's appointments
+  // Fetch only the current patient's appointments
   Future<void> _fetchAppointments() async {
     if (_currentUserId == null) return;
 
@@ -67,13 +69,11 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
         SnackBar(content: Text("⚠️ Error fetching appointments: $e")),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  /// ✅ Cancel an existing appointment
+  // Cancel an existing appointment
   Future<void> _cancelAppointment(String appointmentId) async {
     try {
       await _appointmentDB.child(appointmentId).update({
@@ -95,15 +95,17 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     }
   }
 
-  /// ✅ Book a new appointment
+  // Book a new appointment
   Future<void> _bookNewAppointment() async {
     final Doctor? selectedDoctor = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const DoctorListPage()),
+      MaterialPageRoute(
+        builder: (context) => const DoctorListPage(selectMode: true),
+      ),
     );
 
     if (selectedDoctor != null && mounted) {
-      // 📅 Pick date
+      // Pick date
       final DateTime? selectedDate = await showDatePicker(
         context: context,
         initialDate: DateTime.now().add(const Duration(days: 1)),
@@ -113,7 +115,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
 
       if (selectedDate == null) return;
 
-      // ⏰ Pick time
+      // Pick time
       final TimeOfDay? selectedTime = await showTimePicker(
         // ignore: use_build_context_synchronously
         context: context,
@@ -130,7 +132,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
         selectedTime.minute,
       );
 
-      // ✅ Save appointment in Firebase
+      // Save appointment in Firebase
       final newAppt = {
         'doctorId': selectedDoctor.uid,
         'doctorName': "${selectedDoctor.firstName} ${selectedDoctor.lastName}",
@@ -153,7 +155,7 @@ class _PatientAppointmentsScreenState extends State<PatientAppointmentsScreen> {
     }
   }
 
-  /// ✅ Get status color
+  // Status color
   Color _getStatusColor(String status) {
     switch (status) {
       case 'accepted':

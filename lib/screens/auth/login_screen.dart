@@ -57,8 +57,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final data = Map<String, dynamic>.from(snapshot.value as Map);
+
       final String role = data['role'] ?? '';
-      final bool verified = data['isVerified'] ?? false;
+      // Force boolean type
+      final bool isVerified = (data['isVerified'] is bool)
+          ? data['isVerified']
+          : (data['isVerified'].toString().toLowerCase() == 'true');
 
       if (!mounted) return;
 
@@ -70,8 +74,8 @@ class _LoginScreenState extends State<LoginScreen> {
         'admin': const AdminDashboard(),
       };
 
-      // Unverified doctors
-      if ((role == 'labDoctor' || role == 'consultingDoctor') && !verified) {
+      // ✅ Unverified doctors go to VerifyPending
+      if ((role == 'labDoctor' || role == 'consultingDoctor') && !isVerified) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const VerifyPending()),
@@ -79,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Navigate to respective dashboard
+      // ✅ Verified users → dashboard
       if (dashboardMap.containsKey(role)) {
         Navigator.pushReplacement(
           context,

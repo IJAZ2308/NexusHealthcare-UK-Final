@@ -7,7 +7,9 @@ import 'doctor_details_page.dart';
 import 'doctor_card.dart';
 
 class DoctorListPage extends StatefulWidget {
-  const DoctorListPage({super.key});
+  final bool selectMode; // If true, return doctor on tap
+
+  const DoctorListPage({super.key, this.selectMode = false});
 
   @override
   State<DoctorListPage> createState() => _DoctorListPageState();
@@ -17,7 +19,6 @@ class _DoctorListPageState extends State<DoctorListPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     "users",
   );
-
   List<Doctor> _doctors = [];
   bool _isLoading = true;
 
@@ -53,14 +54,16 @@ class _DoctorListPageState extends State<DoctorListPage> {
   }
 
   Future<void> _fetchDoctors() async {
-    final snapshot = await _dbRef.orderByChild("role").equalTo("doctor").get();
+    final snapshot = await _dbRef.get();
     List<Doctor> tmpDoctors = [];
     if (snapshot.value != null) {
       Map<dynamic, dynamic> values = snapshot.value as Map<dynamic, dynamic>;
       values.forEach((key, value) {
-        Doctor doctor = Doctor.fromMap(value, key, id: null);
-        if (doctor.isVerified) {
-          tmpDoctors.add(doctor);
+        if (value['role'] == 'doctor') {
+          Doctor doctor = Doctor.fromMap(value, key, id: null);
+          if (doctor.isVerified) {
+            tmpDoctors.add(doctor);
+          }
         }
       });
     }
@@ -68,6 +71,17 @@ class _DoctorListPageState extends State<DoctorListPage> {
       _doctors = tmpDoctors;
       _isLoading = false;
     });
+  }
+
+  void _handleDoctorTap(Doctor doctor) {
+    if (widget.selectMode) {
+      Navigator.pop(context, doctor); // Return doctor to booking screen
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => DoctorDetailPage(doctor: doctor)),
+      );
+    }
   }
 
   @override
@@ -81,7 +95,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20.0),
+                  const SizedBox(height: 20),
                   const Text(
                     'Find your doctor,\nand book an appointment',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
@@ -89,15 +103,9 @@ class _DoctorListPageState extends State<DoctorListPage> {
                   const SizedBox(height: 20),
                   const Text(
                     'Find Doctor by Category',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
-                  const SizedBox(height: 16.0),
-
-                  // Categories Grid
+                  const SizedBox(height: 16),
                   SizedBox(
                     height: 250,
                     child: GridView.builder(
@@ -114,31 +122,22 @@ class _DoctorListPageState extends State<DoctorListPage> {
                         final spec = specialties[index];
                         return GestureDetector(
                           onTap: () {
-                            if (spec["title"] == "See All") {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => DoctorCategoryPage(
-                                    category: "All",
-                                    doctors: _doctors,
-                                  ),
+                            final categoryDoctors = spec["title"] == "See All"
+                                ? _doctors
+                                : _doctors
+                                      .where((d) => d.category == spec["title"])
+                                      .toList();
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DoctorCategoryPage(
+                                  category: spec["title"]!,
+                                  doctors: categoryDoctors,
+                                  selectMode: widget.selectMode,
                                 ),
-                              );
-                            } else {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => DoctorCategoryPage(
-                                    category: spec["title"]!,
-                                    doctors: _doctors
-                                        .where(
-                                          (d) => d.category == spec["title"],
-                                        )
-                                        .toList(),
-                                  ),
-                                ),
-                              );
-                            }
+                              ),
+                            );
                           },
                           child: _buildCategoryCard(
                             spec["title"]!,
@@ -150,11 +149,9 @@ class _DoctorListPageState extends State<DoctorListPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Top Doctors section
-                  Row(
+                  const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
+                    children: [
                       Text(
                         'Top Doctors',
                         style: TextStyle(
@@ -182,15 +179,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
                             itemBuilder: (context, index) {
                               final doctor = _doctors[index];
                               return GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          DoctorDetailPage(doctor: doctor),
-                                    ),
-                                  );
-                                },
+                                onTap: () => _handleDoctorTap(doctor),
                                 child: DoctorCard(doctor: doctor),
                               );
                             },
@@ -206,12 +195,25 @@ class _DoctorListPageState extends State<DoctorListPage> {
 class DoctorCategoryPage extends StatelessWidget {
   final String category;
   final List<Doctor> doctors;
+  final bool selectMode;
 
   const DoctorCategoryPage({
     super.key,
     required this.category,
     required this.doctors,
+    this.selectMode = false,
   });
+
+  void _handleDoctorTap(BuildContext context, Doctor doctor) {
+    if (selectMode) {
+      Navigator.pop(context, doctor);
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => DoctorDetailPage(doctor: doctor)),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -224,14 +226,7 @@ class DoctorCategoryPage extends StatelessWidget {
               itemBuilder: (context, index) {
                 final doctor = doctors[index];
                 return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DoctorDetailPage(doctor: doctor),
-                      ),
-                    );
-                  },
+                  onTap: () => _handleDoctorTap(context, doctor),
                   child: DoctorCard(doctor: doctor),
                 );
               },
@@ -240,6 +235,7 @@ class DoctorCategoryPage extends StatelessWidget {
   }
 }
 
+// Category Card widget
 Widget _buildCategoryCard(
   String title,
   dynamic icon, {

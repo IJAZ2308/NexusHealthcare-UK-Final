@@ -18,7 +18,10 @@ class _AdminDoctorApprovalPageState extends State<AdminDoctorApprovalPage> {
   );
 
   List<Doctor> _doctors = [];
+  List<Doctor> _filteredDoctors = [];
   bool _isLoading = true;
+
+  String _filterCategory = "All"; // Consulting, Lab, All
 
   @override
   void initState() {
@@ -41,32 +44,70 @@ class _AdminDoctorApprovalPageState extends State<AdminDoctorApprovalPage> {
     }
     setState(() {
       _doctors = tmpDoctors;
+      _applyFilter();
       _isLoading = false;
     });
   }
 
+  void _applyFilter() {
+    if (_filterCategory == "All") {
+      _filteredDoctors = _doctors;
+    } else {
+      _filteredDoctors = _doctors
+          .where((doc) => doc.category == _filterCategory)
+          .toList();
+    }
+  }
+
   Future<void> _approveDoctor(String uid) async {
-    await _database.child(uid).update({"isVerified": true});
+    await _database.child(uid).update({
+      "isVerified": true,
+      "status": "approved",
+    });
     _fetchDoctors();
   }
 
   Future<void> _rejectDoctor(String uid) async {
-    await _database.child(uid).remove(); // or just keep but not approve
+    await _database.child(uid).update({
+      "isVerified": false,
+      "status": "rejected",
+    });
     _fetchDoctors();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Admin – Approve Doctors")),
+      appBar: AppBar(
+        title: const Text("Admin – Approve Doctors"),
+        actions: [
+          DropdownButton<String>(
+            value: _filterCategory,
+            items: const [
+              DropdownMenuItem(value: "All", child: Text("All")),
+              DropdownMenuItem(
+                value: "Consulting Doctor",
+                child: Text("Consulting"),
+              ),
+              DropdownMenuItem(value: "Lab Doctor", child: Text("Lab")),
+            ],
+            onChanged: (value) {
+              setState(() {
+                _filterCategory = value!;
+                _applyFilter();
+              });
+            },
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _doctors.isEmpty
+          : _filteredDoctors.isEmpty
           ? const Center(child: Text("No doctors available"))
           : ListView.builder(
-              itemCount: _doctors.length,
+              itemCount: _filteredDoctors.length,
               itemBuilder: (context, index) {
-                final doc = _doctors[index];
+                final doc = _filteredDoctors[index];
                 return Card(
                   margin: const EdgeInsets.all(8),
                   child: ListTile(
@@ -79,7 +120,9 @@ class _AdminDoctorApprovalPageState extends State<AdminDoctorApprovalPage> {
                           : null,
                     ),
                     title: Text("${doc.firstName} ${doc.lastName}"),
-                    subtitle: Text(doc.category),
+                    subtitle: Text(
+                      "${doc.category} • Status: ${doc.isVerified ? "Approved" : doc.status}",
+                    ),
                     trailing: doc.isVerified
                         ? const Text(
                             "Approved ✅",

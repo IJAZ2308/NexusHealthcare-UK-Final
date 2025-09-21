@@ -1,10 +1,10 @@
 import 'package:dr_shahin_uk/screens/lib/screens/verify_doctors_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:intl/intl.dart'; // ✅ Used for date formatting
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:http/http.dart' as http; // ✅ Used for FCM HTTP requests
-import 'dart:convert'; // ✅ Used for JSON encoding HTTP requests
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import 'manage_doctors_screen.dart';
 import 'manage_patients_screen.dart';
@@ -23,45 +23,69 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
   int totalDoctors = 0;
+  int consultingDoctors = 0;
+  int labDoctors = 0;
+  int pendingDoctors = 0;
   int totalPatients = 0;
   int totalHospitals = 0;
   int totalAppointments = 0;
-  int pendingDoctors = 0;
 
   Map<String, dynamic> hospitals = {};
-  Map<String, dynamic> doctors = {};
-
   List<Map<String, dynamic>> appointments = [];
-  bool _isLoadingAppointments = true; // ✅ Used in loading indicator
+
+  bool _isLoadingAppointments = true;
   final int _selectedFilter = 0; // 0=All, 1=Upcoming, 2=Cancelled, 3=Completed
-  final String _searchQuery = ""; // Search filter
+  final String _searchQuery = "";
+  String _doctorFilter = "all"; // all | consulting | lab
 
   @override
   void initState() {
     super.initState();
     _loadCounts();
-    _loadPendingDoctorsCount();
     _loadAppointments();
   }
 
   Future<void> _loadCounts() async {
-    final doctorsSnap = await _dbRef.child('doctors').get();
-    final patientsSnap = await _dbRef.child('patients').get();
+    final usersSnap = await _dbRef.child('users').get();
     final hospitalsSnap = await _dbRef.child('hospitals').get();
     final appointmentsSnap = await _dbRef.child('appointments').get();
 
-    if (!mounted) return;
+    int docCount = 0;
+    int patientCount = 0;
+    int consultingCount = 0;
+    int labCount = 0;
+    int pendingCount = 0;
+
+    if (usersSnap.value != null) {
+      final map = Map<String, dynamic>.from(usersSnap.value as Map);
+      map.forEach((key, value) {
+        final user = Map<String, dynamic>.from(value);
+        final role = user['role'] ?? '';
+        final status = user['status'] ?? '';
+        final category = (user['category'] ?? '').toString().toLowerCase();
+
+        if (role == 'patient') {
+          patientCount++;
+        } else if (role == 'doctor') {
+          docCount++;
+          if (status == 'pending') pendingCount++;
+          if (category.contains('consult')) consultingCount++;
+          if (category.contains('lab')) labCount++;
+        }
+      });
+    }
 
     setState(() {
-      totalDoctors = doctorsSnap.value != null
-          ? (doctorsSnap.value as Map).length
-          : 0;
-      totalPatients = patientsSnap.value != null
-          ? (patientsSnap.value as Map).length
-          : 0;
+      totalDoctors = docCount;
+      totalPatients = patientCount;
+      consultingDoctors = consultingCount;
+      labDoctors = labCount;
+      pendingDoctors = pendingCount;
+
       totalHospitals = hospitalsSnap.value != null
           ? (hospitalsSnap.value as Map).length
           : 0;
+
       totalAppointments = appointmentsSnap.value != null
           ? (appointmentsSnap.value as Map).length
           : 0;
@@ -69,25 +93,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       hospitals = hospitalsSnap.value != null
           ? Map<String, dynamic>.from(hospitalsSnap.value as Map)
           : {};
-      doctors = doctorsSnap.value != null
-          ? Map<String, dynamic>.from(doctorsSnap.value as Map)
-          : {};
-    });
-  }
-
-  Future<void> _loadPendingDoctorsCount() async {
-    final snapshot = await _dbRef
-        .child('doctors')
-        .orderByChild('status')
-        .equalTo('pending')
-        .get();
-
-    if (!mounted) return;
-
-    setState(() {
-      pendingDoctors = snapshot.value != null
-          ? (snapshot.value as Map).length
-          : 0;
     });
   }
 
@@ -122,17 +127,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _openUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
-      if (!mounted) return;
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      if (!mounted) return;
       ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(const SnackBar(content: Text("Cannot open URL")));
     }
   }
 
-  // Send test FCM (keeps http & dart:convert used)
   Future<void> sendTestNotification(String token) async {
     try {
       await http.post(
@@ -193,9 +196,43 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  void _showDoctorFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Filter Doctors"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text("All"),
+              onTap: () {
+                setState(() => _doctorFilter = "all");
+                Navigator.pop(ctx);
+              },
+            ),
+            ListTile(
+              title: const Text("Consulting Doctors"),
+              onTap: () {
+                setState(() => _doctorFilter = "consulting");
+                Navigator.pop(ctx);
+              },
+            ),
+            ListTile(
+              title: const Text("Lab Doctors"),
+              onTap: () {
+                setState(() => _doctorFilter = "lab");
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Filter and search appointments
     List<Map<String, dynamic>> filteredAppointments = appointments.where((
       appt,
     ) {
@@ -204,16 +241,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
       bool matchesFilter = true;
 
       switch (_selectedFilter) {
-        case 1: // Upcoming
+        case 1:
           matchesFilter =
               (status == 'pending' || status == 'confirmed') &&
               dt != null &&
               dt.isAfter(DateTime.now());
           break;
-        case 2: // Cancelled
+        case 2:
           matchesFilter = status == 'cancelled';
           break;
-        case 3: // Completed
+        case 3:
           matchesFilter = status == 'completed';
           break;
         default:
@@ -232,7 +269,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Admin Dashboard")),
+      appBar: AppBar(
+        title: const Text("Admin Dashboard"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: _showDoctorFilterDialog,
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(10),
         child: Column(
@@ -245,14 +290,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
               children: [
-                _buildCountCard("Doctors", totalDoctors, Colors.blue),
+                if (_doctorFilter == "all" || _doctorFilter == "consulting")
+                  _buildCountCard(
+                    "Consulting Doctors",
+                    consultingDoctors,
+                    Colors.blue,
+                  ),
+                if (_doctorFilter == "all" || _doctorFilter == "lab")
+                  _buildCountCard("Lab Doctors", labDoctors, Colors.purple),
+                if (_doctorFilter == "all")
+                  _buildCountCard("Doctors", totalDoctors, Colors.teal),
                 _buildCountCard("Patients", totalPatients, Colors.green),
                 _buildCountCard("Hospitals", totalHospitals, Colors.orange),
-                _buildCountCard(
-                  "Appointments",
-                  totalAppointments,
-                  Colors.purple,
-                ),
+                _buildCountCard("Appointments", totalAppointments, Colors.pink),
+                _buildCountCard("Pending Doctors", pendingDoctors, Colors.red),
               ],
             ),
             const SizedBox(height: 20),
@@ -295,13 +346,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
               () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const VerifyDoctorsScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const VerifyPending()),
                 );
               },
             ),
-
             const SizedBox(height: 20),
             _isLoadingAppointments
                 ? const Center(child: CircularProgressIndicator())

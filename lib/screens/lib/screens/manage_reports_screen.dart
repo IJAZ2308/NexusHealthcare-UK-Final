@@ -1,5 +1,3 @@
-// lib/screens/manage_reports_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,33 +13,41 @@ class _ManageReportsScreenState extends State<ManageReportsScreen> {
   final DatabaseReference _reportsRef = FirebaseDatabase.instance.ref().child(
     'reports',
   );
-  final DatabaseReference _patientsRef = FirebaseDatabase.instance.ref().child(
-    'patients',
+  final DatabaseReference _usersRef = FirebaseDatabase.instance.ref().child(
+    'users',
   );
 
   final Map<String, String> _patientNames = {};
+  final Map<String, String> _doctorNames = {};
+
   Map<String, dynamic> _reportsByPatient = {};
   bool _loading = true;
-
   String _searchQuery = "";
 
   @override
   void initState() {
     super.initState();
-    _loadPatientNamesAndReports();
+    _loadUsersAndReports();
   }
 
-  Future<void> _loadPatientNamesAndReports() async {
-    final patientsSnap = await _patientsRef.get();
+  Future<void> _loadUsersAndReports() async {
+    final usersSnap = await _usersRef.get();
     final reportsSnap = await _reportsRef.get();
 
     if (!mounted) return;
 
-    // Load patient names
-    if (patientsSnap.exists && patientsSnap.value != null) {
-      final data = Map<String, dynamic>.from(patientsSnap.value as Map);
+    // Load patient & doctor names
+    if (usersSnap.exists && usersSnap.value != null) {
+      final data = Map<String, dynamic>.from(usersSnap.value as Map);
       data.forEach((key, value) {
-        _patientNames[key] = value['name'] ?? 'Unknown';
+        final role = value['role'] ?? '';
+        final fullName =
+            "${value['firstName'] ?? ''} ${value['lastName'] ?? ''}".trim();
+        if (role == "patient") {
+          _patientNames[key] = fullName.isEmpty ? "Unknown Patient" : fullName;
+        } else if (role == "labDoctor" || role == "consultingDoctor") {
+          _doctorNames[key] = fullName.isEmpty ? "Unknown Doctor" : fullName;
+        }
       });
     }
 
@@ -140,12 +146,16 @@ class _ManageReportsScreenState extends State<ManageReportsScreen> {
                                 final report = Map<String, dynamic>.from(
                                   repEntry.value,
                                 );
+                                final uploadedBy = report['uploadedBy'] ?? '';
+                                final doctorName =
+                                    _doctorNames[uploadedBy] ?? uploadedBy;
+
                                 return ListTile(
                                   title: Text(
                                     report['title'] ?? 'Untitled Report',
                                   ),
                                   subtitle: Text(
-                                    "Uploaded by: ${report['uploadedBy'] ?? 'Unknown'}\nDate: ${report['uploadedAt'] ?? 'Unknown'}",
+                                    "Uploaded by: $doctorName\nDate: ${report['uploadedAt'] ?? 'Unknown'}",
                                   ),
                                   trailing: report['url'] != null
                                       ? IconButton(
