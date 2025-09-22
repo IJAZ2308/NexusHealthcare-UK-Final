@@ -6,7 +6,11 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class OsmMapScreen extends StatefulWidget {
-  const OsmMapScreen({super.key});
+  const OsmMapScreen({
+    super.key,
+    required List hospitals,
+    required userLocation,
+  });
 
   @override
   State<OsmMapScreen> createState() => _OsmMapScreenState();

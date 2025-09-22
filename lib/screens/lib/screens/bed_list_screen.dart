@@ -72,6 +72,7 @@ class _BedListScreenState extends State<BedListScreen> {
       setState(() => _loadingLocation = false);
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(SnackBar(content: Text("Error getting location: $e")));
     }
