@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 
 import 'manage_doctors_screen.dart';
 import 'manage_patients_screen.dart';
@@ -38,13 +39,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final String _searchQuery = "";
   String _doctorFilter = "all"; // all | consulting | lab
 
+  // NEW: Realtime pending doctors
+  StreamSubscription<DatabaseEvent>? _pendingDoctorsSubscription;
+  final List<String> _pendingDoctorUids = [];
+
   @override
   void initState() {
     super.initState();
     _loadCounts();
     _loadAppointments();
+    _listenPendingDoctors(); // start listening for new pending doctors
   }
 
+  @override
+  void dispose() {
+    _pendingDoctorsSubscription?.cancel();
+    super.dispose();
+  }
+
+  // Load counts of doctors, patients, hospitals, appointments
   Future<void> _loadCounts() async {
     final usersSnap = await _dbRef.child('users').get();
     final hospitalsSnap = await _dbRef.child('hospitals').get();
@@ -129,6 +142,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously
         context,
@@ -186,10 +200,32 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildNavigationCard(String title, VoidCallback onTap) {
+  Widget _buildNavigationCard(
+    String title,
+    int badgeCount,
+    VoidCallback onTap,
+  ) {
     return Card(
       child: ListTile(
-        title: Text(title),
+        title: Row(
+          children: [
+            Text(title),
+            if (badgeCount > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badgeCount.toString(),
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ],
+          ],
+        ),
         trailing: const Icon(Icons.arrow_forward),
         onTap: onTap,
       ),
@@ -227,6 +263,56 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // NEW: Listen to new pending doctors in realtime
+  void _listenPendingDoctors() {
+    _pendingDoctorsSubscription = _dbRef
+        .child('users')
+        .orderByChild('status')
+        .equalTo('pending')
+        .onChildAdded
+        .listen((event) {
+          final data = event.snapshot.value as Map<dynamic, dynamic>?;
+          if (data != null) {
+            final doctorName = data['name'] ?? 'New Doctor';
+            final doctorUid = event.snapshot.key!;
+
+            if (!_pendingDoctorUids.contains(doctorUid)) {
+              _pendingDoctorUids.add(doctorUid);
+              _showNewDoctorPopup(doctorName);
+              _loadCounts();
+            }
+          }
+        });
+  }
+
+  void _showNewDoctorPopup(String doctorName) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("New Doctor Registration"),
+        content: Text(
+          "$doctorName has registered and is pending verification.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VerifyPending()),
+              );
+            },
+            child: const Text("Verify Now"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Later"),
+          ),
+        ],
       ),
     );
   }
@@ -307,19 +393,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ],
             ),
             const SizedBox(height: 20),
-            _buildNavigationCard("Manage Doctors", () {
+            _buildNavigationCard("Manage Doctors", 0, () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ManageDoctorsScreen()),
               );
             }),
-            _buildNavigationCard("Manage Patients", () {
+            _buildNavigationCard("Manage Patients", 0, () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ManagePatientsScreen()),
               );
             }),
-            _buildNavigationCard("Manage Hospitals", () {
+            _buildNavigationCard("Manage Hospitals", 0, () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -327,7 +413,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 ),
               );
             }),
-            _buildNavigationCard("Manage Appointments", () {
+            _buildNavigationCard("Manage Appointments", 0, () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -335,21 +421,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 ),
               );
             }),
-            _buildNavigationCard("Manage Reports", () {
+            _buildNavigationCard("Manage Reports", 0, () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ManageReportsScreen()),
               );
             }),
-            _buildNavigationCard(
-              "Verify Pending Doctors ($pendingDoctors)",
-              () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const VerifyPending()),
-                );
-              },
-            ),
+            _buildNavigationCard("Verify Pending Doctors", pendingDoctors, () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VerifyPending()),
+              );
+            }),
             const SizedBox(height: 20),
             _isLoadingAppointments
                 ? const Center(child: CircularProgressIndicator())
