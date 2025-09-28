@@ -1,5 +1,4 @@
-// lib/screens/login_screen.dart
-
+import 'package:dr_shahin_uk/main.dart'; // for saveUserToken & setupFCMListeners
 import 'package:dr_shahin_uk/screens/auth/register_selection.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/admin_dashboard.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard_lab.dart';
@@ -22,13 +21,13 @@ class _LoginScreenState extends State<LoginScreen> {
   final DatabaseReference _db = FirebaseDatabase.instance.ref();
 
   final _formKey = GlobalKey<FormState>();
-
   String email = '';
   String password = '';
   bool _isLoading = false;
   bool _obscureText = true;
   String error = "";
 
+  /// -------------------- LOGIN --------------------
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -50,16 +49,13 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final snapshot = await _db.child("users").child(uid).get();
-
       if (!snapshot.exists) {
         setState(() => error = "User not found in database.");
         return;
       }
 
       final data = Map<String, dynamic>.from(snapshot.value as Map);
-
       final String role = data['role'] ?? '';
-      // Force boolean type
       final bool isVerified = (data['isVerified'] is bool)
           ? data['isVerified']
           : (data['isVerified'].toString().toLowerCase() == 'true');
@@ -74,9 +70,11 @@ class _LoginScreenState extends State<LoginScreen> {
         'admin': const AdminDashboard(),
       };
 
-      // ✅ Unverified doctors go to VerifyPending
+      // ✅ Unverified doctors → VerifyPending
       if ((role == 'labDoctor' || role == 'consultingDoctor') && !isVerified) {
+        await _onLoginSuccess(context); // save token & setup FCM
         Navigator.pushReplacement(
+          // ignore: use_build_context_synchronously
           context,
           MaterialPageRoute(builder: (_) => const VerifyPending()),
         );
@@ -85,7 +83,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ✅ Verified users → dashboard
       if (dashboardMap.containsKey(role)) {
+        await _onLoginSuccess(context); // save token & setup FCM
         Navigator.pushReplacement(
+          // ignore: use_build_context_synchronously
           context,
           MaterialPageRoute(builder: (_) => dashboardMap[role]!),
         );
@@ -99,6 +99,14 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// -------------------- SAVE TOKEN & FCM --------------------
+  Future<void> _onLoginSuccess(BuildContext context) async {
+    await saveUserToken(); // save FCM token
+    // ignore: use_build_context_synchronously
+    setupFCMListeners(context); // setup foreground notifications
+  }
+
+  /// -------------------- RESET PASSWORD --------------------
   Future<void> _resetPassword() async {
     if (email.isEmpty) {
       setState(() {
@@ -124,6 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// -------------------- BUILD --------------------
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -222,9 +231,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     color: Colors.grey.shade400,
                                   ),
                                   onPressed: () {
-                                    setState(() {
-                                      _obscureText = !_obscureText;
-                                    });
+                                    setState(
+                                      () => _obscureText = !_obscureText,
+                                    );
                                   },
                                 ),
                               ),

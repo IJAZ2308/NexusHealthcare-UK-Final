@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 
@@ -13,6 +14,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'appointments',
   );
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
 
   @override
   Widget build(BuildContext context) {
@@ -38,12 +40,20 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
 
           data.forEach((key, value) {
             final appointment = Map<String, dynamic>.from(value);
-            appointments.add({
-              'doctor': appointment['doctorName'] ?? 'Unknown',
-              'specialization': appointment['specialization'] ?? 'General',
-              'time': appointment['dateTime'] ?? '',
-            });
+
+            // ✅ Filter by logged-in user
+            if (appointment['patientId'] == _currentUser?.uid) {
+              appointments.add({
+                'doctor': appointment['doctorName'] ?? 'Unknown',
+                'specialization': appointment['specialization'] ?? 'General',
+                'time': appointment['dateTime'] ?? '',
+              });
+            }
           });
+
+          if (appointments.isEmpty) {
+            return const Center(child: Text("No appointments booked yet."));
+          }
 
           // Sort appointments by date/time
           appointments.sort((a, b) {

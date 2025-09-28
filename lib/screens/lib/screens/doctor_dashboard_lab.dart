@@ -1,4 +1,3 @@
-// lib/screens/doctor_dashboard_lab.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -18,6 +17,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
 
   String _doctorName = "Lab Doctor";
   List<Map<String, String>> _patients = [];
+  Map<String, List<Map<String, String>>> _patientDocuments = {};
 
   @override
   void initState() {
@@ -42,14 +42,33 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   Future<void> _fetchPatients() async {
     final snapshot = await _db.orderByChild('role').equalTo('patient').get();
     final List<Map<String, String>> loadedPatients = [];
+    final Map<String, List<Map<String, String>>> loadedDocs = {};
+
     if (snapshot.exists) {
       final Map<dynamic, dynamic> patientsMap =
           snapshot.value as Map<dynamic, dynamic>;
       patientsMap.forEach((key, value) {
         loadedPatients.add({'uid': key, 'name': value['name'] ?? 'Patient'});
+
+        // Fetch uploaded documents for this patient
+        final patientDocs = (value['documents'] != null)
+            ? Map<String, dynamic>.from(value['documents'] as Map)
+            : {};
+        loadedDocs[key] = patientDocs.entries
+            .map(
+              (e) => {
+                'name': (e.value['name'] ?? e.key).toString(),
+                'url': (e.value['url'] ?? '').toString(),
+              },
+            )
+            .toList();
       });
     }
-    setState(() => _patients = loadedPatients);
+
+    setState(() {
+      _patients = loadedPatients;
+      _patientDocuments = loadedDocs;
+    });
   }
 
   void _logout() async {
@@ -65,6 +84,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
       ).showSnackBar(const SnackBar(content: Text("No patients available")));
       return;
     }
+
     showDialog(
       context: context,
       builder: (_) {
@@ -79,6 +99,16 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                 final patient = _patients[index];
                 return ListTile(
                   title: Text(patient['name']!),
+                  subtitle:
+                      _patientDocuments[patient['uid']!]?.isNotEmpty ?? false
+                      ? Text(
+                          "Documents: ${_patientDocuments[patient['uid']!]?.length ?? 0}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        )
+                      : null,
                   onTap: () {
                     Navigator.pop(context);
                     final doctorId = _auth.currentUser!.uid;
@@ -91,7 +121,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                           doctorId: doctorId,
                         ),
                       ),
-                    );
+                    ).then(
+                      (_) => _fetchPatients(),
+                    ); // refresh docs after upload
                   },
                 );
               },
@@ -119,12 +151,13 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           children: [
-            // Upload Reports
+            // Upload Reports (with badge)
             _dashboardCard(
               icon: Icons.upload_file,
               title: "Upload Reports",
-              color: Colors.red,
-              onTap: _pickPatientAndUpload,
+              color: _patients.isEmpty ? Colors.grey : Colors.red,
+              badgeCount: _patients.length,
+              onTap: _patients.isEmpty ? null : _pickPatientAndUpload,
             ),
             // Chats
             _dashboardCard(
@@ -148,34 +181,59 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     required IconData icon,
     required String title,
     required Color color,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
+    int badgeCount = 0,
   }) {
     return InkWell(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: color.withAlpha(25),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color, width: 1),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 40, color: color),
-              const SizedBox(height: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-                textAlign: TextAlign.center,
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: color.withAlpha(25),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color, width: 1),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 40, color: color),
+                  const SizedBox(height: 8),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          if (badgeCount > 0)
+            Positioned(
+              right: 8,
+              top: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

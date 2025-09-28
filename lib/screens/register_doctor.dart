@@ -17,8 +17,6 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _specializationController =
-      TextEditingController();
 
   File? _licenseImage;
   String error = '';
@@ -26,6 +24,30 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
 
   /// Role selection: "labDoctor" or "consultingDoctor"
   String? _selectedDoctorRole;
+
+  /// Category selection
+  String? _selectedCategory;
+
+  final List<String> _categories = [
+    "General Surgery",
+    "Orthopaedics",
+    "Neurosurgery",
+    "Cardiothoracic",
+    "Vascular Surgery",
+    "ENT",
+    "Ophthalmology",
+    "Urology",
+    "Plastic Surgery",
+    "Paediatric Surgery",
+    "Neonatology",
+    "Obstetrics & Gynaecology (O&G)",
+    "Oncology",
+    "General Practice",
+    "Radiology & Imaging",
+    "Emergency service",
+    "Public Health",
+    "Occupational Health",
+  ];
 
   /// Pick license image from gallery
   Future<void> _pickImage() async {
@@ -51,8 +73,8 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       return;
     }
 
-    if (_specializationController.text.trim().isEmpty) {
-      setState(() => error = "Please enter your specialization.");
+    if (_selectedCategory == null || _selectedCategory!.trim().isEmpty) {
+      setState(() => error = "Please select your specialization category.");
       return;
     }
 
@@ -83,7 +105,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
         role: "doctor",
         s: _selectedDoctorRole!, // labDoctor or consultingDoctor
         licenseUrl: licenseUrl,
-        specialization: _specializationController.text.trim(),
+        specialization: _selectedCategory!, // ✅ Save chosen category
         isVerified: false,
         doctorType: '', // ✅ mark doctor as pending verification
       );
@@ -127,10 +149,21 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               ),
               const SizedBox(height: 10),
 
-              // Specialization
-              TextField(
-                controller: _specializationController,
-                decoration: const InputDecoration(labelText: "Specialization"),
+              // Category Dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: "Select Specialization Category",
+                  border: OutlineInputBorder(),
+                ),
+                items: _categories
+                    .map(
+                      (cat) => DropdownMenuItem(value: cat, child: Text(cat)),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => _selectedCategory = value);
+                },
               ),
               const SizedBox(height: 10),
 
@@ -203,7 +236,6 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
-    _specializationController.dispose();
     super.dispose();
   }
 }

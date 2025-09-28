@@ -16,59 +16,66 @@ class _VerifyPendingState extends State<VerifyPending> {
     'users',
   );
   List<Map<String, dynamic>> pendingDoctors = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadPendingDoctors();
+    _listenPendingDoctors();
   }
 
-  Future<void> _loadPendingDoctors() async {
-    final snapshot = await _dbRef
-        .orderByChild('status')
-        .equalTo('pending')
-        .get();
+  /// 🔄 Realtime listener for pending doctors
+  void _listenPendingDoctors() {
+    _dbRef.orderByChild('status').equalTo('pending').onValue.listen((event) {
+      final data = event.snapshot.value as Map<dynamic, dynamic>?;
 
-    List<Map<String, dynamic>> temp = [];
-    if (snapshot.value != null) {
-      final map = snapshot.value as Map<dynamic, dynamic>;
-      map.forEach((key, value) {
-        if ((value['role'] == 'labDoctor' ||
-                value['role'] == 'consultingDoctor') &&
-            value['status'] == 'pending') {
-          temp.add({
-            "id": key,
-            "name": value["name"] ?? "",
-            "email": value["email"] ?? "",
-            "role": value["role"] ?? "",
-          });
-        }
-      });
-    }
+      List<Map<String, dynamic>> temp = [];
+      if (data != null) {
+        data.forEach((key, value) {
+          if ((value['role'] == 'labDoctor' ||
+                  value['role'] == 'consultingDoctor') &&
+              value['status'] == 'pending') {
+            temp.add({
+              "id": key,
+              "name": value["name"] ?? "",
+              "email": value["email"] ?? "",
+              "role": value["role"] ?? "",
+            });
+          }
+        });
+      }
 
-    if (!mounted) return;
-    setState(() {
-      pendingDoctors = temp;
+      if (mounted) {
+        setState(() {
+          pendingDoctors = temp;
+          _loading = false;
+        });
+      }
     });
   }
 
-  /// Approve doctor & redirect automatically if logged-in user
+  /// ✅ Approve doctor
   Future<void> _approveDoctor(String id, String role) async {
-    await _dbRef.child('$id/status').set('verified');
-    await _dbRef.child('$id/isVerified').set(true);
+    await _dbRef.child(id).update({"status": "verified", "isVerified": true});
 
-    _loadPendingDoctors();
+    // ignore: use_build_context_synchronously
+    ScaffoldMessenger.of(
+      // ignore: use_build_context_synchronously
+      context,
+    ).showSnackBar(SnackBar(content: Text("Doctor approved ✅")));
 
-    // If the currently logged-in doctor is approved, redirect to dashboard
+    // Auto-redirect if this is the logged-in doctor
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null && currentUser.uid == id) {
       if (role == 'labDoctor') {
+        // ignore: use_build_context_synchronously
         Navigator.pushReplacement(
           // ignore: use_build_context_synchronously
           context,
           MaterialPageRoute(builder: (_) => const LabDoctorDashboard()),
         );
       } else if (role == 'consultingDoctor') {
+        // ignore: use_build_context_synchronously
         Navigator.pushReplacement(
           // ignore: use_build_context_synchronously
           context,
@@ -78,16 +85,27 @@ class _VerifyPendingState extends State<VerifyPending> {
     }
   }
 
+  /// ❌ Reject doctor
   Future<void> _rejectDoctor(String id) async {
-    await _dbRef.child('$id/status').set('rejected');
-    _loadPendingDoctors();
+    await _dbRef.child(id).update({"status": "rejected", "isVerified": false});
+
+    // ignore: use_build_context_synchronously
+    ScaffoldMessenger.of(
+      // ignore: use_build_context_synchronously
+      context,
+    ).showSnackBar(SnackBar(content: Text("Doctor rejected ❌")));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Verify Pending Doctors")),
-      body: pendingDoctors.isEmpty
+      appBar: AppBar(
+        title: const Text("Verify Pending Doctors"),
+        backgroundColor: Colors.red,
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : pendingDoctors.isEmpty
           ? const Center(child: Text("No pending doctors"))
           : ListView.builder(
               itemCount: pendingDoctors.length,
@@ -99,6 +117,7 @@ class _VerifyPendingState extends State<VerifyPending> {
                     vertical: 5,
                   ),
                   child: ListTile(
+                    leading: const Icon(Icons.person, color: Colors.red),
                     title: Text(doc["name"]),
                     subtitle: Text("${doc["email"]}\nRole: ${doc["role"]}"),
                     isThreeLine: true,

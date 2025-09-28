@@ -207,7 +207,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const DoctorAppointmentsScreen(),
+                          builder: (_) => const DoctorAppointmentListPage(),
                         ),
                       );
                     },
