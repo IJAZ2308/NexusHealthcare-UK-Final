@@ -1,4 +1,3 @@
-// lib/screens/doctor_dashboard_consulting.dart
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
 import 'package:flutter/material.dart';
@@ -64,6 +63,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
   }
 
   Future<void> _fetchAppointments() async {
+    setState(() => _loadingAppointments = true);
     final doctorId = _auth.currentUser!.uid;
     final snapshot = await FirebaseDatabase.instance
         .ref()
@@ -73,19 +73,36 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
         .get();
 
     final List<Map<String, String>> loadedAppointments = [];
+
     if (snapshot.exists) {
       final Map<dynamic, dynamic> dataMap =
           snapshot.value as Map<dynamic, dynamic>;
-      dataMap.forEach((key, value) {
+
+      for (var entry in dataMap.entries) {
+        final appt = Map<String, dynamic>.from(entry.value);
+        String patientName = "Unknown";
+
+        // Fetch patient name using patientId
+        if (appt['patientId'] != null) {
+          final patientSnapshot = await _db.child(appt['patientId']).get();
+          if (patientSnapshot.exists) {
+            final patientData = Map<String, dynamic>.from(
+              patientSnapshot.value as Map,
+            );
+            patientName = patientData['name'] ?? "Unknown";
+          }
+        }
+
         loadedAppointments.add({
-          'id': key,
-          'patientId': value['patientId'] ?? '',
-          'patientName': value['patientName'] ?? 'Patient',
-          'date': value['date'] ?? '',
-          'time': value['time'] ?? '',
+          'id': entry.key,
+          'patientId': appt['patientId'] ?? '',
+          'patientName': patientName,
+          'date': appt['date'] ?? '',
+          'time': appt['time'] ?? '',
         });
-      });
+      }
     }
+
     setState(() {
       _appointments = loadedAppointments;
       _loadingAppointments = false;

@@ -6,11 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class OsmMapScreen extends StatefulWidget {
-  const OsmMapScreen({
-    super.key,
-    required List hospitals,
-    required userLocation,
-  });
+  const OsmMapScreen({super.key});
 
   @override
   State<OsmMapScreen> createState() => _OsmMapScreenState();
@@ -19,7 +15,7 @@ class OsmMapScreen extends StatefulWidget {
 class _OsmMapScreenState extends State<OsmMapScreen> {
   Position? _currentPosition;
   final List<Marker> _markers = [];
-  final double _radiusKm = 10;
+  final double _radiusKm = 10; // 10 km radius
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref("hospitals");
 
   @override
@@ -45,15 +41,15 @@ class _OsmMapScreenState extends State<OsmMapScreen> {
 
       if (data == null) return;
 
-      // Filter and create markers
       for (var entry in data.entries) {
         final hospital = entry.value as Map;
-        final lat = (hospital['latitude'] as num?)?.toDouble();
-        final lng = (hospital['longitude'] as num?)?.toDouble();
+        final lat = (hospital['lat'] as num?)?.toDouble();
+        final lng = (hospital['lng'] as num?)?.toDouble();
         final name = hospital['name'] ?? "Unknown";
         final beds = hospital['availableBeds'] ?? 0;
 
         if (lat != null && lng != null) {
+          // Calculate distance in km
           final distance =
               Geolocator.distanceBetween(
                 pos.latitude,
@@ -63,28 +59,27 @@ class _OsmMapScreenState extends State<OsmMapScreen> {
               ) /
               1000;
 
-          if (distance <= _radiusKm) {
-            _markers.add(
-              Marker(
-                point: LatLng(lat, lng),
-                width: 200,
-                height: 60,
-                child: GestureDetector(
-                  onTap: () => _showHospitalPopup(name, beds, lat, lng),
-                  child: const Icon(
-                    Icons.local_hospital,
-                    color: Colors.red,
-                    size: 30,
-                  ),
-                ),
+          // Choose marker color based on distance
+          final isNearby = distance <= _radiusKm;
+          final markerColor = isNearby ? Colors.red : Colors.grey;
+
+          _markers.add(
+            Marker(
+              point: LatLng(lat, lng),
+              width: 200,
+              height: 60,
+              child: GestureDetector(
+                onTap: () => _showHospitalPopup(name, beds, lat, lng, distance),
+                child: Icon(Icons.local_hospital, color: markerColor, size: 30),
               ),
-            );
-          }
+            ),
+          );
         }
       }
 
       setState(() {});
     } catch (e) {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously
         context,
@@ -92,12 +87,25 @@ class _OsmMapScreenState extends State<OsmMapScreen> {
     }
   }
 
-  void _showHospitalPopup(String name, int beds, double lat, double lng) {
+  void _showHospitalPopup(
+    String name,
+    int beds,
+    double lat,
+    double lng,
+    double distance,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(name),
-        content: Text("Available Beds: $beds"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Available Beds: $beds"),
+            Text("Distance: ${distance.toStringAsFixed(2)} km"),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -120,6 +128,7 @@ class _OsmMapScreenState extends State<OsmMapScreen> {
     if (await canLaunchUrl(url)) {
       await launchUrl(url);
     } else {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously
         context,
@@ -134,9 +143,15 @@ class _OsmMapScreenState extends State<OsmMapScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Nearby Hospitals on Map")),
+      appBar: AppBar(title: const Text("Hospitals on Map")),
       body: FlutterMap(
-        options: MapOptions(initialZoom: 13.0),
+        options: MapOptions(
+          initialCenter: LatLng(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+          ),
+          initialZoom: 13.0,
+        ),
         children: [
           TileLayer(
             urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -145,6 +160,7 @@ class _OsmMapScreenState extends State<OsmMapScreen> {
           ),
           MarkerLayer(
             markers: [
+              // User location marker
               Marker(
                 point: LatLng(
                   _currentPosition!.latitude,

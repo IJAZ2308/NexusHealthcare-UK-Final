@@ -1,6 +1,6 @@
-// lib/screens/manage_hospitals_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ManageHospitalsScreen extends StatefulWidget {
@@ -15,6 +15,40 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
     'hospitals',
   );
 
+  @override
+  void initState() {
+    super.initState();
+    _migrateHospitals();
+  }
+
+  /// Migration: ensures all hospitals have default fields
+  Future<void> _migrateHospitals() async {
+    final snapshot = await _dbRef.get();
+    if (!snapshot.exists) return;
+
+    final data = snapshot.value as Map<dynamic, dynamic>;
+    for (var entry in data.entries) {
+      final hospitalId = entry.key;
+      final hospitalData = Map<String, dynamic>.from(entry.value);
+
+      final Map<String, dynamic> updates = {};
+
+      if (!hospitalData.containsKey('availableBeds')) {
+        updates['availableBeds'] = 0;
+      }
+      if (!hospitalData.containsKey('phone')) {
+        updates['phone'] = "N/A";
+      }
+      if (!hospitalData.containsKey('website')) {
+        updates['website'] = "";
+      }
+
+      if (updates.isNotEmpty) {
+        await _dbRef.child(hospitalId).update(updates);
+      }
+    }
+  }
+
   Future<void> _deleteHospital(String hospitalId) async {
     await _dbRef.child(hospitalId).remove();
   }
@@ -24,6 +58,93 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
+  }
+
+  Future<Map<String, double>> _getLatLng(String address) async {
+    List<Location> locations = await locationFromAddress(address);
+    return {"lat": locations.first.latitude, "lng": locations.first.longitude};
+  }
+
+  void _showAddHospitalDialog() {
+    final nameController = TextEditingController();
+    final addressController = TextEditingController();
+    final phoneController = TextEditingController();
+    final websiteController = TextEditingController();
+    final bedsController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text("Add Hospital"),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: "Hospital Name"),
+                ),
+                TextField(
+                  controller: addressController,
+                  decoration: const InputDecoration(labelText: "Address"),
+                ),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(labelText: "Phone"),
+                ),
+                TextField(
+                  controller: websiteController,
+                  decoration: const InputDecoration(labelText: "Website"),
+                ),
+                TextField(
+                  controller: bedsController,
+                  decoration: const InputDecoration(
+                    labelText: "Available Beds",
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final address = addressController.text.trim();
+                final phone = phoneController.text.trim();
+                final website = websiteController.text.trim();
+                final beds = int.tryParse(bedsController.text.trim()) ?? 0;
+
+                if (name.isEmpty || address.isEmpty) return;
+
+                // Fetch Lat/Lon automatically
+                final latlng = await _getLatLng(address);
+
+                final hospitalData = {
+                  "name": name,
+                  "address": address,
+                  "phone": phone.isNotEmpty ? phone : "N/A",
+                  "website": website,
+                  "availableBeds": beds,
+                  "lat": latlng["lat"],
+                  "lng": latlng["lng"],
+                };
+
+                await _dbRef.push().set(hospitalData);
+
+                // ignore: use_build_context_synchronously
+                Navigator.of(ctx).pop();
+              },
+              child: const Text("Save"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text("Cancel"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -41,7 +162,7 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
           final List<Map<dynamic, dynamic>> hospitals = hospitalsMap.entries
               .map((e) {
-                final data = e.value as Map<dynamic, dynamic>;
+                final data = Map<String, dynamic>.from(e.value);
                 data['hospitalId'] = e.key;
                 return data;
               })
@@ -51,6 +172,12 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
             itemCount: hospitals.length,
             itemBuilder: (context, index) {
               final data = hospitals[index];
+              final beds = data['availableBeds']?.toString() ?? "N/A";
+              final phone = data['phone']?.toString() ?? "N/A";
+              final website = data['website']?.toString() ?? "";
+              final lat = data['lat'];
+              final lng = data['lng'];
+
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
@@ -61,20 +188,23 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
                           height: 60,
                           fit: BoxFit.cover,
                         )
-                      : null,
-                  title: Text(data['name']),
+                      : const Icon(Icons.local_hospital, color: Colors.red),
+                  title: Text(data['name'] ?? "Unknown"),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Available Beds: ${data['availableBeds']}"),
-                      Text("Phone: ${data['phone']}"),
-                      TextButton(
-                        onPressed: () => _openUrl(data['website']),
-                        child: const Text(
-                          "Visit Website",
-                          style: TextStyle(color: Colors.blue),
+                      Text("Available Beds: $beds"),
+                      Text("Phone: $phone"),
+                      if (website.isNotEmpty)
+                        TextButton(
+                          onPressed: () => _openUrl(website),
+                          child: const Text(
+                            "Visit Website",
+                            style: TextStyle(color: Colors.blue),
+                          ),
                         ),
-                      ),
+                      if (lat != null && lng != null)
+                        Text("Location: $lat, $lng"),
                     ],
                   ),
                   trailing: IconButton(
@@ -86,6 +216,10 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
             },
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddHospitalDialog,
+        child: const Icon(Icons.add),
       ),
     );
   }

@@ -10,35 +10,34 @@ class AdminDoctorApprovalScreen extends StatefulWidget {
 }
 
 class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+    'users',
+  );
   List<Map<String, dynamic>> pendingDoctors = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadPendingDoctors();
+    _listenPendingDoctors(); // Use real-time listener
   }
 
-  Future<void> _loadPendingDoctors() async {
-    setState(() => _isLoading = true);
+  /// Real-time listener for pending doctors
+  void _listenPendingDoctors() {
+    _dbRef.orderByChild('status').equalTo('pending').onValue.listen((event) {
+      final data = event.snapshot.value as Map<dynamic, dynamic>?;
 
-    try {
-      final snapshot = await _dbRef.child('users').get();
-
-      if (!mounted) return;
-
-      List<Map<String, dynamic>> tmp = [];
-      if (snapshot.value != null) {
-        final map = snapshot.value as Map<dynamic, dynamic>;
-        map.forEach((key, value) {
+      List<Map<String, dynamic>> temp = [];
+      if (data != null) {
+        data.forEach((key, value) {
           final role = value['role'] ?? '';
           final status = value['status'] ?? '';
           if ((role == 'labDoctor' || role == 'consultingDoctor') &&
               status == 'pending') {
-            tmp.add({
+            temp.add({
               'id': key,
-              'name': "${value['firstName'] ?? ''} ${value['lastName'] ?? ''}",
+              'name': "${value['firstName'] ?? ''} ${value['lastName'] ?? ''}"
+                  .trim(),
               'email': value['email'] ?? '',
               'license': value['license'] ?? '',
               'role': role,
@@ -47,36 +46,50 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen> {
         });
       }
 
-      setState(() {
-        pendingDoctors = tmp;
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint("Error loading pending doctors: $e");
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    }
+      if (mounted) {
+        setState(() {
+          pendingDoctors = temp;
+          _isLoading = false;
+        });
+      }
+    });
   }
 
+  /// Approve doctor
   Future<void> _approveDoctor(String doctorId) async {
     try {
-      await _dbRef.child('users/$doctorId').update({
+      await _dbRef.child(doctorId).update({
         'status': 'approved',
         'isVerified': true,
       });
-
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Doctor approved ✅')));
-
-      _loadPendingDoctors(); // Refresh list
     } catch (e) {
-      debugPrint("Error approving doctor: $e");
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Approval failed ❌')));
+      ).showSnackBar(SnackBar(content: Text('Approval failed ❌: $e')));
+    }
+  }
+
+  /// Reject doctor
+  Future<void> _rejectDoctor(String doctorId) async {
+    try {
+      await _dbRef.child(doctorId).update({
+        'status': 'rejected',
+        'isVerified': false,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Doctor rejected ❌')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Rejection failed ❌: $e')));
     }
   }
 
@@ -93,12 +106,36 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen> {
               itemBuilder: (context, index) {
                 final doctor = pendingDoctors[index];
                 return Card(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   child: ListTile(
+                    leading: const Icon(Icons.person, color: Colors.red),
                     title: Text(doctor['name']),
-                    subtitle: Text("${doctor['email']} • ${doctor['role']}"),
-                    trailing: ElevatedButton(
-                      onPressed: () => _approveDoctor(doctor['id']),
-                      child: const Text("Approve"),
+                    subtitle: Text(
+                      "${doctor['email']}\nRole: ${doctor['role']}\nLicense: ${doctor['license']}",
+                    ),
+                    isThreeLine: true,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                          ),
+                          onPressed: () => _approveDoctor(doctor['id']),
+                          child: const Text("Approve"),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          onPressed: () => _rejectDoctor(doctor['id']),
+                          child: const Text("Reject"),
+                        ),
+                      ],
                     ),
                   ),
                 );

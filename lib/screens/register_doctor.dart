@@ -22,11 +22,8 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   String error = '';
   bool loading = false;
 
-  /// Role selection: "labDoctor" or "consultingDoctor"
-  String? _selectedDoctorRole;
-
-  /// Category selection
-  String? _selectedCategory;
+  String? _selectedDoctorRole; // labDoctor or consultingDoctor
+  String? _selectedCategory; // specialization
 
   final List<String> _categories = [
     "General Surgery",
@@ -49,30 +46,26 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
     "Occupational Health",
   ];
 
-  /// Pick license image from gallery
+  /// Pick license image
   Future<void> _pickImage() async {
     try {
       final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-      if (picked != null) {
-        setState(() => _licenseImage = File(picked.path));
-      }
+      if (picked != null) setState(() => _licenseImage = File(picked.path));
     } catch (e) {
       setState(() => error = 'Failed to pick image: $e');
     }
   }
 
-  /// Register doctor with Firebase Auth + RTDB + Cloudinary
+  /// Register doctor
   Future<void> _registerDoctor() async {
     if (_selectedDoctorRole == null) {
       setState(() => error = "Please select your doctor role.");
       return;
     }
-
     if (_licenseImage == null) {
       setState(() => error = "Please upload your license.");
       return;
     }
-
     if (_selectedCategory == null || _selectedCategory!.trim().isEmpty) {
       setState(() => error = "Please select your specialization category.");
       return;
@@ -84,11 +77,10 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
     });
 
     try {
-      // Step 1: Upload license to Cloudinary
+      // Upload license to Cloudinary
       final String? licenseUrl = await _authService.uploadLicense(
         _licenseImage!,
       );
-
       if (licenseUrl == null) {
         setState(() {
           loading = false;
@@ -97,17 +89,17 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
         return;
       }
 
-      // Step 2: Register user with Firebase Auth
+      // Register doctor in Firebase Auth & RTDB
       final bool success = await _authService.registerUser(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         name: _nameController.text.trim(),
-        role: "doctor",
-        s: _selectedDoctorRole!, // labDoctor or consultingDoctor
+        role: "doctor", // important for admin filtering
+        s: _selectedDoctorRole!,
         licenseUrl: licenseUrl,
-        specialization: _selectedCategory!, // ✅ Save chosen category
-        isVerified: false,
-        doctorType: '', // ✅ mark doctor as pending verification
+        specialization: _selectedCategory!,
+        isVerified: false, // mark as pending
+        doctorType: "pending",
       );
 
       if (!mounted) return;
@@ -142,14 +134,12 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
                 Text(error, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 10),
 
-              // Full Name
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Full Name"),
               ),
               const SizedBox(height: 10),
 
-              // Category Dropdown
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 decoration: const InputDecoration(
@@ -161,13 +151,10 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
                       (cat) => DropdownMenuItem(value: cat, child: Text(cat)),
                     )
                     .toList(),
-                onChanged: (value) {
-                  setState(() => _selectedCategory = value);
-                },
+                onChanged: (value) => setState(() => _selectedCategory = value),
               ),
               const SizedBox(height: 10),
 
-              // Email
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: "Email"),
@@ -175,7 +162,6 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               ),
               const SizedBox(height: 10),
 
-              // Password
               TextField(
                 controller: _passwordController,
                 decoration: const InputDecoration(labelText: "Password"),
@@ -183,7 +169,6 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               ),
               const SizedBox(height: 10),
 
-              // Role Selection Dropdown
               DropdownButtonFormField<String>(
                 value: _selectedDoctorRole,
                 decoration: const InputDecoration(
@@ -200,13 +185,11 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
                     child: Text("Consulting Doctor"),
                   ),
                 ],
-                onChanged: (value) {
-                  setState(() => _selectedDoctorRole = value);
-                },
+                onChanged: (value) =>
+                    setState(() => _selectedDoctorRole = value),
               ),
               const SizedBox(height: 20),
 
-              // License Upload Preview
               _licenseImage != null
                   ? Image.file(_licenseImage!, height: 120)
                   : const Text("No license uploaded"),
@@ -217,7 +200,6 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Register Button
               loading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(

@@ -1,5 +1,4 @@
 // lib/screens/patient/doctor_list_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../models/doctor.dart';
@@ -54,19 +53,24 @@ class _DoctorListPageState extends State<DoctorListPage> {
   }
 
   Future<void> _fetchDoctors() async {
+    setState(() => _isLoading = true);
+
     final snapshot = await _dbRef.get();
     List<Doctor> tmpDoctors = [];
+
     if (snapshot.value != null) {
-      Map<dynamic, dynamic> values = snapshot.value as Map<dynamic, dynamic>;
+      final values = snapshot.value as Map<dynamic, dynamic>;
       values.forEach((key, value) {
-        if (value['role'] == 'doctor') {
+        if (value['role'] != null &&
+            (value['role'] == 'labDoctor' ||
+                value['role'] == 'consultingDoctor') &&
+            value['status'] == 'verified') {
           Doctor doctor = Doctor.fromMap(value, key, id: null);
-          if (doctor.isVerified) {
-            tmpDoctors.add(doctor);
-          }
+          tmpDoctors.add(doctor);
         }
       });
     }
+
     setState(() {
       _doctors = tmpDoctors;
       _isLoading = false;
@@ -75,7 +79,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
 
   void _handleDoctorTap(Doctor doctor) {
     if (widget.selectMode) {
-      Navigator.pop(context, doctor); // Return doctor to booking screen
+      Navigator.pop(context, doctor);
     } else {
       Navigator.push(
         context,
@@ -125,7 +129,11 @@ class _DoctorListPageState extends State<DoctorListPage> {
                             final categoryDoctors = spec["title"] == "See All"
                                 ? _doctors
                                 : _doctors
-                                      .where((d) => d.category == spec["title"])
+                                      .where(
+                                        (d) =>
+                                            d.category.toLowerCase() ==
+                                            spec["title"]!.toLowerCase(),
+                                      )
                                       .toList();
 
                             Navigator.push(
@@ -192,6 +200,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
   }
 }
 
+// Category Page
 class DoctorCategoryPage extends StatelessWidget {
   final String category;
   final List<Doctor> doctors;
@@ -235,7 +244,7 @@ class DoctorCategoryPage extends StatelessWidget {
   }
 }
 
-// Category Card widget
+// Category Card
 Widget _buildCategoryCard(
   String title,
   dynamic icon, {

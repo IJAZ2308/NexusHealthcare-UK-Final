@@ -17,13 +17,17 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
 
   String _doctorName = "Lab Doctor";
   List<Map<String, String>> _patients = [];
-  Map<String, List<Map<String, String>>> _patientDocuments = {};
+  Map<String, List<Map<String, String>>> _patientReports = {};
+  List<Map<String, String>> _appointments = [];
+  bool _loadingPatients = true;
+  bool _loadingAppointments = true;
 
   @override
   void initState() {
     super.initState();
     _fetchDoctorData();
     _fetchPatients();
+    _fetchAppointments();
   }
 
   Future<void> _fetchDoctorData() async {
@@ -40,9 +44,12 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   }
 
   Future<void> _fetchPatients() async {
+    setState(() => _loadingPatients = true);
+
     final snapshot = await _db.orderByChild('role').equalTo('patient').get();
+
     final List<Map<String, String>> loadedPatients = [];
-    final Map<String, List<Map<String, String>>> loadedDocs = {};
+    final Map<String, List<Map<String, String>>> loadedReports = {};
 
     if (snapshot.exists) {
       final Map<dynamic, dynamic> patientsMap =
@@ -50,24 +57,58 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
       patientsMap.forEach((key, value) {
         loadedPatients.add({'uid': key, 'name': value['name'] ?? 'Patient'});
 
-        // Fetch uploaded documents for this patient
-        final patientDocs = (value['documents'] != null)
-            ? Map<String, dynamic>.from(value['documents'] as Map)
-            : {};
-        loadedDocs[key] = patientDocs.entries
-            .map(
-              (e) => {
-                'name': (e.value['name'] ?? e.key).toString(),
-                'url': (e.value['url'] ?? '').toString(),
-              },
-            )
-            .toList();
+        // Fetch uploaded reports for this patient
+        final patientReports = <Map<String, String>>[];
+        if (value['reports'] != null) {
+          final Map<dynamic, dynamic> reportsMap = Map<String, dynamic>.from(
+            value['reports'],
+          );
+          reportsMap.forEach((_, report) {
+            patientReports.add({
+              'name': report['reportName'] ?? 'Report',
+              'url': report['reportUrl'] ?? '',
+            });
+          });
+        }
+        loadedReports[key] = patientReports;
       });
     }
 
     setState(() {
       _patients = loadedPatients;
-      _patientDocuments = loadedDocs;
+      _patientReports = loadedReports;
+      _loadingPatients = false;
+    });
+  }
+
+  Future<void> _fetchAppointments() async {
+    setState(() => _loadingAppointments = true);
+    final doctorId = _auth.currentUser!.uid;
+    final snapshot = await FirebaseDatabase.instance
+        .ref()
+        .child('appointments')
+        .orderByChild('doctorId')
+        .equalTo(doctorId)
+        .get();
+
+    final List<Map<String, String>> loadedAppointments = [];
+
+    if (snapshot.exists) {
+      final data = Map<String, dynamic>.from(snapshot.value as Map);
+      data.forEach((key, value) {
+        loadedAppointments.add({
+          "id": key,
+          "date": value['date'] ?? '',
+          "time": value['time'] ?? '',
+          "patientId": value['patientId'] ?? '',
+          "status": value['status'] ?? '',
+        });
+      });
+    }
+
+    setState(() {
+      _appointments = loadedAppointments;
+      _loadingAppointments = false;
     });
   }
 
@@ -100,9 +141,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                 return ListTile(
                   title: Text(patient['name']!),
                   subtitle:
-                      _patientDocuments[patient['uid']!]?.isNotEmpty ?? false
+                      _patientReports[patient['uid']!]?.isNotEmpty ?? false
                       ? Text(
-                          "Documents: ${_patientDocuments[patient['uid']!]?.length ?? 0}",
+                          "Reports: ${_patientReports[patient['uid']!]?.length ?? 0}",
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.grey,
@@ -123,8 +164,46 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                       ),
                     ).then(
                       (_) => _fetchPatients(),
-                    ); // refresh docs after upload
+                    ); // refresh reports after upload
                   },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _viewAppointments() {
+    if (_appointments.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No appointments assigned")));
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text("Your Appointments"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _appointments.length,
+              itemBuilder: (context, index) {
+                final appt = _appointments[index];
+                final patient = _patients.firstWhere(
+                  (p) => p['uid'] == appt['patientId'],
+                  orElse: () => {'name': 'Unknown'},
+                )['name'];
+                return ListTile(
+                  title: Text(patient ?? 'Unknown'),
+                  subtitle: Text(
+                    "${appt['date']} at ${appt['time']}\nStatus: ${appt['status']}",
+                  ),
                 );
               },
             ),
@@ -151,11 +230,13 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           children: [
-            // Upload Reports (with badge)
+            // Upload Reports
             _dashboardCard(
               icon: Icons.upload_file,
               title: "Upload Reports",
-              color: _patients.isEmpty ? Colors.grey : Colors.red,
+              color: _patients.isEmpty && !_loadingPatients
+                  ? Colors.grey
+                  : Colors.red,
               badgeCount: _patients.length,
               onTap: _patients.isEmpty ? null : _pickPatientAndUpload,
             ),
@@ -170,6 +251,16 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                   MaterialPageRoute(builder: (_) => const DoctorChatlistPage()),
                 );
               },
+            ),
+            // Appointments
+            _dashboardCard(
+              icon: Icons.event,
+              title: "Appointments",
+              color: _appointments.isEmpty && !_loadingAppointments
+                  ? Colors.grey
+                  : Colors.orange,
+              badgeCount: _appointments.length,
+              onTap: _appointments.isEmpty ? null : _viewAppointments,
             ),
           ],
         ),
