@@ -120,9 +120,11 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
 
   void _pickPatientAndUpload() {
     if (_patients.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No patients available")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No patients available to upload reports."),
+        ),
+      );
       return;
     }
 
@@ -162,9 +164,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                           doctorId: doctorId,
                         ),
                       ),
-                    ).then(
-                      (_) => _fetchPatients(),
-                    ); // refresh reports after upload
+                    ).then((_) => _fetchPatients());
                   },
                 );
               },
@@ -177,9 +177,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
 
   void _viewAppointments() {
     if (_appointments.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No appointments assigned")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No appointments assigned yet.")),
+      );
       return;
     }
 
@@ -223,48 +223,48 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          children: [
-            // Upload Reports
-            _dashboardCard(
-              icon: Icons.upload_file,
-              title: "Upload Reports",
-              color: _patients.isEmpty && !_loadingPatients
-                  ? Colors.grey
-                  : Colors.red,
-              badgeCount: _patients.length,
-              onTap: _patients.isEmpty ? null : _pickPatientAndUpload,
+      body: (_loadingPatients || _loadingAppointments)
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                children: [
+                  // Upload Reports
+                  _dashboardCard(
+                    icon: Icons.upload_file,
+                    title: "Upload Reports",
+                    color: Colors.red,
+                    badgeCount: _patients.length,
+                    onTap: _pickPatientAndUpload,
+                  ),
+                  // Chats
+                  _dashboardCard(
+                    icon: Icons.chat,
+                    title: "Chats",
+                    color: Colors.blue,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DoctorChatlistPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  // Appointments
+                  _dashboardCard(
+                    icon: Icons.event,
+                    title: "Appointments",
+                    color: Colors.orange,
+                    badgeCount: _appointments.length,
+                    onTap: _viewAppointments,
+                  ),
+                ],
+              ),
             ),
-            // Chats
-            _dashboardCard(
-              icon: Icons.chat,
-              title: "Chats",
-              color: Colors.blue,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DoctorChatlistPage()),
-                );
-              },
-            ),
-            // Appointments
-            _dashboardCard(
-              icon: Icons.event,
-              title: "Appointments",
-              color: _appointments.isEmpty && !_loadingAppointments
-                  ? Colors.grey
-                  : Colors.orange,
-              badgeCount: _appointments.length,
-              onTap: _appointments.isEmpty ? null : _viewAppointments,
-            ),
-          ],
-        ),
-      ),
     );
   }
 
