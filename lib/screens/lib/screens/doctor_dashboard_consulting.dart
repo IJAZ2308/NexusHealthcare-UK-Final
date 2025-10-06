@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../upload_document_screen.dart';
-
 import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
 
 class ConsultingDoctorDashboard extends StatefulWidget {
@@ -82,7 +81,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
         final appt = Map<String, dynamic>.from(entry.value);
         String patientName = "Unknown";
 
-        // Fetch patient name using patientId
         if (appt['patientId'] != null) {
           final patientSnapshot = await _db.child(appt['patientId']).get();
           if (patientSnapshot.exists) {
@@ -109,10 +107,31 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     });
   }
 
+  /// ✅ Logout with confirmation dialog
   void _logout() async {
-    await _auth.signOut();
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Confirm Logout"),
+        content: const Text("Are you sure you want to log out?"),
+        actions: [
+          TextButton(
+            child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          ElevatedButton(
+            child: const Text("Logout"),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true) {
+      await _auth.signOut();
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
 
   void _pickPatientAndUpload() {

@@ -1,5 +1,6 @@
 import 'package:dr_shahin_uk/screens/lib/screens/verify_doctors_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // ✅ Added for logout
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -22,6 +23,7 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  final FirebaseAuth _auth = FirebaseAuth.instance; // ✅ Added
 
   int totalDoctors = 0;
   int consultingDoctors = 0;
@@ -48,7 +50,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     super.initState();
     _loadCounts();
     _loadAppointments();
-    _listenPendingDoctors(); // start listening for new pending doctors
+    _listenPendingDoctors();
   }
 
   @override
@@ -57,7 +59,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
     super.dispose();
   }
 
-  // Load counts of doctors, patients, hospitals, appointments
+  // ✅ Logout Function
+  void _logout() async {
+    await _auth.signOut();
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/login');
+  }
+
   Future<void> _loadCounts() async {
     final usersSnap = await _dbRef.child('users').get();
     final hospitalsSnap = await _dbRef.child('hospitals').get();
@@ -94,15 +102,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
       consultingDoctors = consultingCount;
       labDoctors = labCount;
       pendingDoctors = pendingCount;
-
       totalHospitals = hospitalsSnap.value != null
           ? (hospitalsSnap.value as Map).length
           : 0;
-
       totalAppointments = appointmentsSnap.value != null
           ? (appointmentsSnap.value as Map).length
           : 0;
-
       hospitals = hospitalsSnap.value != null
           ? Map<String, dynamic>.from(hospitalsSnap.value as Map)
           : {};
@@ -142,7 +147,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously
         context,
@@ -210,9 +214,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: Row(
           children: [
             Text(title),
-            if (badgeCount > 0) ...[
-              const SizedBox(width: 8),
+            if (badgeCount > 0)
               Container(
+                margin: const EdgeInsets.only(left: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.red,
@@ -223,7 +227,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
-            ],
           ],
         ),
         trailing: const Icon(Icons.arrow_forward),
@@ -267,7 +270,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // NEW: Listen to new pending doctors in realtime
   void _listenPendingDoctors() {
     _pendingDoctorsSubscription = _dbRef
         .child('users')
@@ -279,7 +281,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           if (data != null) {
             final doctorName = data['name'] ?? 'New Doctor';
             final doctorUid = event.snapshot.key!;
-
             if (!_pendingDoctorUids.contains(doctorUid)) {
               _pendingDoctorUids.add(doctorUid);
               _showNewDoctorPopup(doctorName);
@@ -325,7 +326,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final status = (appt['status'] ?? '').toString().toLowerCase();
       final dt = DateTime.tryParse(appt['dateTime'] ?? '');
       bool matchesFilter = true;
-
       switch (_selectedFilter) {
         case 1:
           matchesFilter =
@@ -342,7 +342,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         default:
           matchesFilter = true;
       }
-
       bool matchesSearch =
           appt['doctorName'].toString().toLowerCase().contains(
             _searchQuery.toLowerCase(),
@@ -350,7 +349,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           appt['patientName'].toString().toLowerCase().contains(
             _searchQuery.toLowerCase(),
           );
-
       return matchesFilter && matchesSearch;
     }).toList();
 
@@ -358,6 +356,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
       appBar: AppBar(
         title: const Text("Admin Dashboard"),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.logout), // ✅ Logout Button Added
+            onPressed: _logout,
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: _showDoctorFilterDialog,
@@ -447,7 +449,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               'dd MMM yyyy, hh:mm a',
                             ).format(DateTime.parse(appt['dateTime']))
                           : 'N/A';
-
                       return Card(
                         child: ListTile(
                           title: Text(

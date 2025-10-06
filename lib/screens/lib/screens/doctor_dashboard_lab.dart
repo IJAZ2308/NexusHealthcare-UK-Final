@@ -112,10 +112,31 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     });
   }
 
+  // 🔹 Updated logout with confirmation dialog
   void _logout() async {
-    await _auth.signOut();
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to log out?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Logout"),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout ?? false) {
+      await _auth.signOut();
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
 
   void _pickPatientAndUpload() {
@@ -220,7 +241,11 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
         title: Text("Lab Doctor Dashboard - $_doctorName"),
         backgroundColor: const Color(0xff0064FA),
         actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: _logout,
+          ),
         ],
       ),
       body: (_loadingPatients || _loadingAppointments)
@@ -232,7 +257,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 children: [
-                  // Upload Reports
                   _dashboardCard(
                     icon: Icons.upload_file,
                     title: "Upload Reports",
@@ -240,7 +264,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                     badgeCount: _patients.length,
                     onTap: _pickPatientAndUpload,
                   ),
-                  // Chats
                   _dashboardCard(
                     icon: Icons.chat,
                     title: "Chats",
@@ -254,7 +277,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                       );
                     },
                   ),
-                  // Appointments
                   _dashboardCard(
                     icon: Icons.event,
                     title: "Appointments",

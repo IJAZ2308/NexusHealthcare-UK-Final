@@ -9,11 +9,10 @@ class BedListScreen extends StatefulWidget {
   const BedListScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
-  _BedListScreenState createState() => _BedListScreenState();
+  BedListScreenState createState() => BedListScreenState(); // public State
 }
 
-class _BedListScreenState extends State<BedListScreen> {
+class BedListScreenState extends State<BedListScreen> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'hospitals',
   );
@@ -44,16 +43,12 @@ class _BedListScreenState extends State<BedListScreen> {
         hospitalMap.forEach((key, value) {
           Map<String, dynamic> hospital = Map<String, dynamic>.from(value);
           hospital['id'] = key;
-
-          // Add a doctorId if your hospital structure has doctor info
           hospital['doctorId'] =
               value['doctorId'] ?? value['adminId'] ?? 'unknown';
-
           tempHospitals.add(hospital);
         });
       }
 
-      // Filter by distance if location is available
       if (_currentPosition != null) {
         tempHospitals = tempHospitals.where((hospital) {
           if (hospital['latitude'] != null && hospital['longitude'] != null) {
@@ -64,7 +59,7 @@ class _BedListScreenState extends State<BedListScreen> {
               hospital['longitude'],
             );
             hospital['distance'] = (distance / 1000).toStringAsFixed(2);
-            return distance <= 5000; // 5 km range
+            return distance <= 5000;
           }
           return false;
         }).toList();
@@ -79,12 +74,15 @@ class _BedListScreenState extends State<BedListScreen> {
   Future<void> _initLocationStream() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Location services are disabled. Please enable them.'),
-        ),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Location services are disabled. Please enable them.',
+            ),
+          ),
+        );
+      });
       return;
     }
 
@@ -92,21 +90,23 @@ class _BedListScreenState extends State<BedListScreen> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location permissions are denied')),
-        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location permissions are denied')),
+          );
+        });
         return;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Location permissions are permanently denied.'),
-        ),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permissions are permanently denied.'),
+          ),
+        );
+      });
       return;
     }
 
@@ -120,40 +120,77 @@ class _BedListScreenState extends State<BedListScreen> {
           setState(() {
             _currentPosition = position;
           });
-          _fetchHospitalsRealtime(); // refresh hospital distances
+          _fetchHospitalsRealtime();
         });
   }
 
-  Future<void> _launchMap(double lat, double lng) async {
-    final url = "https://www.google.com/maps/search/?api=1&query=$lat,$lng";
-    // ignore: deprecated_member_use
-    if (await canLaunch(url)) {
-      // ignore: deprecated_member_use
-      await launch(url);
+  Future<void> _launchUrl(String urlString) async {
+    final uri = Uri.parse(urlString);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      throw 'Could not launch map';
+      debugPrint('Could not launch $urlString');
     }
+  }
+
+  Future<void> _launchMap(double lat, double lng) async {
+    await _launchUrl(
+      "https://www.google.com/maps/search/?api=1&query=$lat,$lng",
+    );
   }
 
   Future<void> _launchCaller(String phoneNumber) async {
-    final url = "tel:$phoneNumber";
-    // ignore: deprecated_member_use
-    if (await canLaunch(url)) {
-      // ignore: deprecated_member_use
-      await launch(url);
-    } else {
-      throw 'Could not make call';
-    }
+    await _launchUrl("tel:$phoneNumber");
   }
 
   Future<void> _launchWebsite(String url) async {
-    // ignore: deprecated_member_use
-    if (await canLaunch(url)) {
-      // ignore: deprecated_member_use
-      await launch(url);
-    } else {
-      throw 'Could not open website';
+    await _launchUrl(url);
+  }
+
+  int _getTotalBeds(Map<String, dynamic> hospital) {
+    final beds = hospital['beds'];
+    if (beds is Map) {
+      int total = 0;
+      beds.forEach((key, value) {
+        if (value is int) total += value;
+      });
+      return total;
+    } else if (beds is int) {
+      return beds;
     }
+    return 0;
+  }
+
+  Widget _buildBedCount(Map<String, dynamic> hospital) {
+    final beds = hospital['beds'];
+    if (beds is Map) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: beds.entries.map((entry) {
+          final count = entry.value;
+          return Text(
+            "${entry.key.toUpperCase()} Beds: $count",
+            style: TextStyle(
+              fontSize: 14,
+              color: (count is int && count == 0) ? Colors.grey : Colors.black,
+            ),
+          );
+        }).toList(),
+      );
+    } else if (beds != null) {
+      return Text("Total Beds: $beds", style: const TextStyle(fontSize: 14));
+    } else {
+      return const Text("Beds: N/A", style: TextStyle(fontSize: 14));
+    }
+  }
+
+  void _bookBed(Map<String, dynamic> hospital) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookingScreen(hospital: hospital),
+      ),
+    );
   }
 
   @override
@@ -180,57 +217,110 @@ class _BedListScreenState extends State<BedListScreen> {
                     itemCount: hospitals.length,
                     itemBuilder: (context, index) {
                       var hospital = hospitals[index];
+                      final totalBeds = _getTotalBeds(hospital);
+
                       return Card(
                         margin: const EdgeInsets.all(10),
-                        child: ListTile(
-                          title: Text(hospital['name'] ?? 'No Name'),
-                          subtitle: Column(
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(10.0),
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text("Beds: ${hospital['beds'] ?? 'N/A'}"),
-                              if (hospital.containsKey('distance'))
-                                Text("Distance: ${hospital['distance']} km"),
-                              Text("Contact: ${hospital['contact'] ?? 'N/A'}"),
+                              ListTile(
+                                title: Text(
+                                  hospital['name'] ?? 'No Name',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildBedCount(hospital),
+                                    if (hospital.containsKey('distance'))
+                                      Text(
+                                        "Distance: ${hospital['distance']} km",
+                                      ),
+                                    Text(
+                                      "Contact: ${hospital['contact'] ?? 'N/A'}",
+                                    ),
+                                  ],
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.map,
+                                        color: Colors.blue,
+                                      ),
+                                      onPressed: () => _launchMap(
+                                        hospital['latitude'],
+                                        hospital['longitude'],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.phone,
+                                        color: Colors.green,
+                                      ),
+                                      onPressed: () => _launchCaller(
+                                        hospital['contact'] ?? "",
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.web,
+                                        color: Colors.orange,
+                                      ),
+                                      onPressed: () => _launchWebsite(
+                                        hospital['website'] ?? "",
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+
+                              Center(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: totalBeds > 0
+                                        ? Colors.blueAccent
+                                        : Colors.grey,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.local_hotel,
+                                    color: Colors.white,
+                                  ),
+                                  label: Text(
+                                    totalBeds > 0
+                                        ? "Book a Bed"
+                                        : "No Beds Available",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  onPressed: totalBeds > 0
+                                      ? () => _bookBed(hospital)
+                                      : null,
+                                ),
+                              ),
                             ],
                           ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.map, color: Colors.blue),
-                                onPressed: () => _launchMap(
-                                  hospital['latitude'],
-                                  hospital['longitude'],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.phone,
-                                  color: Colors.green,
-                                ),
-                                onPressed: () =>
-                                    _launchCaller(hospital['contact'] ?? ""),
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.web,
-                                  color: Colors.orange,
-                                ),
-                                onPressed: () =>
-                                    _launchWebsite(hospital['website'] ?? ""),
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            // Pass doctorId to BookingScreen
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    BookingScreen(hospital: hospital),
-                              ),
-                            );
-                          },
                         ),
                       );
                     },

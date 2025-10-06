@@ -26,9 +26,11 @@ class PatientDashboard extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Patient Dashboard"),
+        backgroundColor: const Color(0xff0064FA), // ✅ for consistency
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
+            tooltip: "Logout",
             onPressed: () => _logout(context),
           ),
         ],
@@ -162,7 +164,7 @@ class PatientDashboard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           // ignore: deprecated_member_use
-          color: color.withOpacity(0.1), // ✅ fixed
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color, width: 1),
         ),

@@ -1,6 +1,6 @@
 class Doctor {
   final String uid;
-  final String category; // Specialization
+  final String category; // Primary specialization
   final String city;
   final String email;
   final String firstName;
@@ -14,8 +14,9 @@ class Doctor {
   final int numberOfReviews;
   final int totalReviews;
   final bool isVerified;
-  final String workingAt; // ✅ Hospital name where doctor works
-  final String status; // ✅ New field (pending / approved / rejected)
+  final String workingAt; // Hospital name where doctor works
+  final String status; // pending / approved / rejected
+  final List<String> specializations; // ✅ Multiple specializations
 
   Doctor({
     required this.uid,
@@ -34,7 +35,8 @@ class Doctor {
     required this.totalReviews,
     required this.isVerified,
     required this.workingAt,
-    required this.status, // ✅ Add here
+    required this.status,
+    required this.specializations, // ✅ added
   });
 
   factory Doctor.fromMap(
@@ -59,7 +61,10 @@ class Doctor {
       totalReviews: data['totalReviews'] ?? 0,
       isVerified: data['isVerified'] ?? false,
       workingAt: data['workingAt'] ?? 'Unknown Hospital',
-      status: data['status'] ?? 'pending', // ✅ default to pending
+      status: data['status'] ?? 'pending',
+      specializations: data['specializations'] != null
+          ? List<String>.from(data['specializations'])
+          : <String>[], // ✅ Safely load as list
     );
   }
 
@@ -81,7 +86,8 @@ class Doctor {
       'totalReviews': totalReviews,
       'isVerified': isVerified,
       'workingAt': workingAt,
-      'status': status, // ✅ include it
+      'status': status,
+      'specializations': specializations, // ✅ include in DB map
     };
   }
 }
