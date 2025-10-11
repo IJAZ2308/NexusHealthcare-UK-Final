@@ -17,9 +17,7 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
 
   Future<void> _updateStatus(String doctorId, String status) async {
     await _dbRef.child(doctorId).update({'status': status});
-
-    if (!mounted) return; // ✅ prevents context error
-
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text("Doctor status updated to $status")));
@@ -27,18 +25,38 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
 
   Future<void> _deleteDoctor(String doctorId) async {
     await _dbRef.child(doctorId).remove();
-
-    if (!mounted) return; // ✅ prevents context error
-
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("Doctor deleted")));
   }
 
   Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Cannot launch URL';
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid or unreachable license URL')),
+      );
+    }
+  }
+
+  // Helper function to get status color
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'pending':
+      default:
+        return Colors.orange;
     }
   }
 
@@ -68,19 +86,49 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
             itemCount: doctors.length,
             itemBuilder: (context, index) {
               final data = doctors[index];
+              final doctorId = data['doctorId'] ?? '';
+              final name = data['name'] ?? data['email'] ?? 'Unknown';
+              final email = data['email'] ?? 'Not provided';
+              final specialty = data['specialty'] ?? 'Not specified';
+              final status = data['status'] ?? 'pending';
+              final licenseUrl = data['licenseUrl'] ?? '';
+
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
-                  title: Text(data['name'] ?? 'Unknown'),
+                  isThreeLine: true,
+                  leading: CircleAvatar(child: Text(name[0].toUpperCase())),
+                  title: Text(name),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Email: ${data['email'] ?? ''}"),
-                      Text("Specialty: ${data['specialty'] ?? ''}"),
-                      Text("Status: ${data['status'] ?? 'pending'}"),
-                      if ((data['licenseUrl'] ?? '').isNotEmpty)
+                      Text("Email: $email"),
+                      Text("Specialty: $specialty"),
+                      Row(
+                        children: [
+                          const Text("Status: "),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(status),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              status.toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (licenseUrl.isNotEmpty)
                         TextButton(
-                          onPressed: () => _openUrl(data['licenseUrl']),
+                          onPressed: () => _openUrl(licenseUrl),
                           child: const Text(
                             "View License",
                             style: TextStyle(color: Colors.blue),
@@ -93,17 +141,39 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.check, color: Colors.green),
-                        onPressed: () =>
-                            _updateStatus(data['doctorId'], "approved"),
+                        tooltip: "Approve",
+                        onPressed: () => _updateStatus(doctorId, "approved"),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.orange),
-                        onPressed: () =>
-                            _updateStatus(data['doctorId'], "rejected"),
+                        tooltip: "Reject",
+                        onPressed: () => _updateStatus(doctorId, "rejected"),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteDoctor(data['doctorId']),
+                        tooltip: "Delete",
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Delete Doctor?'),
+                              content: const Text(
+                                'Are you sure you want to delete this doctor?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Delete'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) _deleteDoctor(doctorId);
+                        },
                       ),
                     ],
                   ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart'; // Fix for kDebugMode
 
 class AdminDoctorApprovalScreen extends StatefulWidget {
   const AdminDoctorApprovalScreen({super.key});
@@ -13,46 +14,72 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'users',
   );
+
   List<Map<String, dynamic>> pendingDoctors = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _listenPendingDoctors(); // Use real-time listener
+    _listenPendingDoctors(); // Real-time listener
   }
 
   /// Real-time listener for pending doctors
   void _listenPendingDoctors() {
-    _dbRef.orderByChild('status').equalTo('pending').onValue.listen((event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>?;
+    _dbRef
+        .orderByChild('status')
+        .equalTo('pending')
+        .onValue
+        .listen(
+          (event) {
+            final data = event.snapshot.value as Map<dynamic, dynamic>?;
 
-      List<Map<String, dynamic>> temp = [];
-      if (data != null) {
-        data.forEach((key, value) {
-          final role = value['role'] ?? '';
-          final status = value['status'] ?? '';
-          if ((role == 'labDoctor' || role == 'consultingDoctor') &&
-              status == 'pending') {
-            temp.add({
-              'id': key,
-              'name': "${value['firstName'] ?? ''} ${value['lastName'] ?? ''}"
-                  .trim(),
-              'email': value['email'] ?? '',
-              'license': value['license'] ?? '',
-              'role': role,
-            });
-          }
-        });
-      }
+            if (kDebugMode) print('Firebase snapshot data: $data');
 
-      if (mounted) {
-        setState(() {
-          pendingDoctors = temp;
-          _isLoading = false;
-        });
-      }
-    });
+            List<Map<String, dynamic>> temp = [];
+
+            if (data != null) {
+              data.forEach((key, value) {
+                if (value is Map<dynamic, dynamic>) {
+                  final role = value['role'] ?? '';
+                  final status = value['status'] ?? '';
+
+                  if (kDebugMode) {
+                    print('User $key with role: $role, status: $status');
+                  }
+
+                  if ((role == 'labDoctor' || role == 'consultingDoctor') &&
+                      status == 'pending') {
+                    temp.add({
+                      'id': key,
+                      'name':
+                          "${value['firstName'] ?? ''} ${value['lastName'] ?? ''}"
+                              .trim(),
+                      'email': value['email'] ?? '',
+                      'license': value['license'] ?? '',
+                      'role': role,
+                    });
+                  }
+                }
+              });
+            }
+
+            if (mounted) {
+              setState(() {
+                pendingDoctors = temp;
+                _isLoading = false;
+              });
+            }
+          },
+          onError: (error) {
+            if (kDebugMode) print('Firebase listener error: $error');
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+          },
+        );
   }
 
   /// Approve doctor
