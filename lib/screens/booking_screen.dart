@@ -124,12 +124,15 @@ class _BookingScreenState extends State<BookingScreen> {
 
     try {
       await _dbRef.push().set(bookingData);
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Appointment booked successfully!")),
       );
+      // ignore: use_build_context_synchronously
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(SnackBar(content: Text("Error saving appointment: $e")));
     } finally {

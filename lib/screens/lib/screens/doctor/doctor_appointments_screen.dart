@@ -39,15 +39,16 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
           final List<Map<String, dynamic>> appointments = [];
 
+          // Build appointments list filtered by current doctor
           data.forEach((key, value) {
             final appointment = Map<String, dynamic>.from(value);
 
-            // ✅ Filter by doctorId
             if (appointment['doctorId'] == _currentDoctor?.uid) {
               appointments.add({
-                'patient': appointment['name'] ?? 'Unknown Patient',
+                'patient': appointment['patientName'] ?? 'Unknown Patient',
                 'notes': appointment['notes'] ?? '',
-                'time': appointment['dateTime'] ?? '',
+                'date': appointment['date'] ?? '',
+                'time': appointment['time'] ?? '',
               });
             }
           });
@@ -56,10 +57,30 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
             return const Center(child: Text("No patients booked yet."));
           }
 
-          // Sort appointments by date/time
+          // Sort appointments by date & time
           appointments.sort((a, b) {
-            final dtA = DateTime.tryParse(a['time']) ?? DateTime.now();
-            final dtB = DateTime.tryParse(b['time']) ?? DateTime.now();
+            DateTime dtA = DateTime.tryParse(a['date']) ?? DateTime.now();
+            DateTime dtB = DateTime.tryParse(b['date']) ?? DateTime.now();
+
+            // Combine with time
+            if (a['time'] != '') {
+              final parts = a['time'].split(":");
+              dtA = dtA.add(
+                Duration(
+                  hours: int.tryParse(parts[0]) ?? 0,
+                  minutes: int.tryParse(parts[1]) ?? 0,
+                ),
+              );
+            }
+            if (b['time'] != '') {
+              final parts = b['time'].split(":");
+              dtB = dtB.add(
+                Duration(
+                  hours: int.tryParse(parts[0]) ?? 0,
+                  minutes: int.tryParse(parts[1]) ?? 0,
+                ),
+              );
+            }
             return dtA.compareTo(dtB);
           });
 
@@ -67,11 +88,19 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
             itemCount: appointments.length,
             itemBuilder: (context, index) {
               final appt = appointments[index];
-              final time = appt['time'] != ''
-                  ? DateFormat(
-                      'dd MMM yyyy, hh:mm a',
-                    ).format(DateTime.parse(appt['time']))
-                  : 'N/A';
+
+              String displayTime = 'N/A';
+              if (appt['date'] != '' && appt['time'] != '') {
+                final dateTime = DateTime.parse(appt['date']).add(
+                  Duration(
+                    hours: int.parse(appt['time'].split(":")[0]),
+                    minutes: int.parse(appt['time'].split(":")[1]),
+                  ),
+                );
+                displayTime = DateFormat(
+                  'dd MMM yyyy, hh:mm a',
+                ).format(dateTime);
+              }
 
               return Card(
                 margin: const EdgeInsets.all(10),
@@ -81,7 +110,7 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
                     color: Colors.deepPurpleAccent,
                   ),
                   title: Text(appt['patient']),
-                  subtitle: Text("Notes: ${appt['notes']}\nTime: $time"),
+                  subtitle: Text("Notes: ${appt['notes']}\nTime: $displayTime"),
                   trailing: const Icon(Icons.arrow_forward_ios),
                   isThreeLine: true,
                 ),
