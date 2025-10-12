@@ -9,7 +9,7 @@ class BedListScreen extends StatefulWidget {
   const BedListScreen({super.key});
 
   @override
-  BedListScreenState createState() => BedListScreenState(); // public State
+  BedListScreenState createState() => BedListScreenState();
 }
 
 class BedListScreenState extends State<BedListScreen> {
@@ -39,7 +39,7 @@ class BedListScreenState extends State<BedListScreen> {
       List<Map<String, dynamic>> tempHospitals = [];
 
       if (data != null) {
-        Map<dynamic, dynamic> hospitalMap = data as Map<dynamic, dynamic>;
+        final hospitalMap = data as Map<dynamic, dynamic>;
         hospitalMap.forEach((key, value) {
           Map<String, dynamic> hospital = Map<String, dynamic>.from(value);
           hospital['id'] = key;
@@ -73,42 +73,15 @@ class BedListScreenState extends State<BedListScreen> {
 
   Future<void> _initLocationStream() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Location services are disabled. Please enable them.',
-            ),
-          ),
-        );
-      });
-      return;
-    }
+    if (!serviceEnabled) return;
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location permissions are denied')),
-          );
-        });
-        return;
-      }
+      if (permission == LocationPermission.denied) return;
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location permissions are permanently denied.'),
-          ),
-        );
-      });
-      return;
-    }
+    if (permission == LocationPermission.deniedForever) return;
 
     _positionSubscription =
         Geolocator.getPositionStream(
@@ -117,9 +90,7 @@ class BedListScreenState extends State<BedListScreen> {
             distanceFilter: 50,
           ),
         ).listen((Position position) {
-          setState(() {
-            _currentPosition = position;
-          });
+          setState(() => _currentPosition = position);
           _fetchHospitalsRealtime();
         });
   }
@@ -128,36 +99,23 @@ class BedListScreenState extends State<BedListScreen> {
     final uri = Uri.parse(urlString);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      debugPrint('Could not launch $urlString');
     }
   }
 
-  Future<void> _launchMap(double lat, double lng) async {
-    await _launchUrl(
-      "https://www.google.com/maps/search/?api=1&query=$lat,$lng",
-    );
-  }
+  Future<void> _launchMap(double lat, double lng) async =>
+      _launchUrl("https://www.google.com/maps/search/?api=1&query=$lat,$lng");
 
-  Future<void> _launchCaller(String phoneNumber) async {
-    await _launchUrl("tel:$phoneNumber");
-  }
+  Future<void> _launchCaller(String phoneNumber) async =>
+      _launchUrl("tel:$phoneNumber");
 
-  Future<void> _launchWebsite(String url) async {
-    await _launchUrl(url);
-  }
+  Future<void> _launchWebsite(String url) async => _launchUrl(url);
 
   int _getTotalBeds(Map<String, dynamic> hospital) {
     final beds = hospital['beds'];
     if (beds is Map) {
-      int total = 0;
-      beds.forEach((key, value) {
-        if (value is int) total += value;
-      });
-      return total;
-    } else if (beds is int) {
-      return beds;
+      return beds.values.fold(0, (prev, value) => prev + (value as int));
     }
+    if (beds is int) return beds;
     return 0;
   }
 
@@ -172,7 +130,7 @@ class BedListScreenState extends State<BedListScreen> {
             "${entry.key.toUpperCase()} Beds: $count",
             style: TextStyle(
               fontSize: 14,
-              color: (count is int && count == 0) ? Colors.grey : Colors.black,
+              color: count == 0 ? Colors.grey : Colors.black,
             ),
           );
         }).toList(),
@@ -216,7 +174,7 @@ class BedListScreenState extends State<BedListScreen> {
                 : ListView.builder(
                     itemCount: hospitals.length,
                     itemBuilder: (context, index) {
-                      var hospital = hospitals[index];
+                      final hospital = hospitals[index];
                       final totalBeds = _getTotalBeds(hospital);
 
                       return Card(
@@ -286,7 +244,6 @@ class BedListScreenState extends State<BedListScreen> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-
                               Center(
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(

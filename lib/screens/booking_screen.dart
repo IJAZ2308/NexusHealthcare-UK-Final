@@ -19,12 +19,15 @@ class _BookingScreenState extends State<BookingScreen> {
   bool _isLoading = false;
 
   late DatabaseReference _dbRef;
+  List<Map<String, dynamic>> doctorsList = [];
+  String? selectedDoctor;
 
   @override
   void initState() {
     super.initState();
     // Save to "appointments" for doctor dashboard
     _dbRef = FirebaseDatabase.instance.ref().child('appointments');
+    _fetchDoctors();
   }
 
   @override
@@ -32,6 +35,28 @@ class _BookingScreenState extends State<BookingScreen> {
     _nameController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchDoctors() async {
+    final doctorRef = FirebaseDatabase.instance.ref().child('doctors');
+    final snapshot = await doctorRef.get();
+    if (snapshot.exists) {
+      Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+      List<Map<String, dynamic>> tempList = [];
+      data.forEach((key, value) {
+        Map<String, dynamic> doctor = Map<String, dynamic>.from(value);
+        doctor['id'] = key;
+
+        // Optional: Only include doctors for this hospital
+        if (doctor['hospitalId'] == widget.hospital['id']) {
+          tempList.add(doctor);
+        }
+      });
+      setState(() {
+        doctorsList = tempList;
+        if (doctorsList.isNotEmpty) selectedDoctor = doctorsList[0]['name'];
+      });
+    }
   }
 
   Future<void> _pickDate() async {
@@ -63,7 +88,8 @@ class _BookingScreenState extends State<BookingScreen> {
   Future<void> _saveBooking() async {
     if (_nameController.text.isEmpty ||
         _selectedDate == null ||
-        _selectedTime == null) {
+        _selectedTime == null ||
+        selectedDoctor == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill all required fields")),
       );
@@ -72,14 +98,20 @@ class _BookingScreenState extends State<BookingScreen> {
 
     final hospital = widget.hospital;
     final hospitalName = hospital['name'] ?? "Unknown Hospital";
-    final doctorName = hospital['doctor'] ?? "Unknown Doctor";
-    final doctorId = hospital['doctorId'] ?? "unknown";
+
+    // Find doctor ID
+    final doctorData = doctorsList.firstWhere(
+      (doc) => doc['name'] == selectedDoctor,
+      orElse: () => {},
+    );
+    final doctorName = doctorData['name'] ?? "Unknown Doctor";
+    final doctorId = doctorData['id'] ?? "unknown";
 
     final bookingData = {
       "patientName": _nameController.text,
       "hospital": hospitalName,
       "doctor": doctorName,
-      "doctorId": doctorId, // crucial for doctor dashboard
+      "doctorId": doctorId,
       "date": _selectedDate!.toIso8601String(),
       "time": _selectedTime!.format(context),
       "notes": _noteController.text,
@@ -91,20 +123,13 @@ class _BookingScreenState extends State<BookingScreen> {
     });
 
     try {
-      // Push creates a unique key for each appointment
       await _dbRef.push().set(bookingData);
-
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Appointment booked successfully!")),
       );
-
-      // ignore: use_build_context_synchronously
       Navigator.pop(context);
     } catch (e) {
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(
-        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(SnackBar(content: Text("Error saving appointment: $e")));
     } finally {
@@ -118,7 +143,6 @@ class _BookingScreenState extends State<BookingScreen> {
   Widget build(BuildContext context) {
     final hospital = widget.hospital;
     final hospitalName = hospital['name'] ?? "Unknown Hospital";
-    final doctorName = hospital['doctor'] ?? "Unknown Doctor";
 
     return Scaffold(
       appBar: AppBar(title: const Text("Book Appointment")),
@@ -133,10 +157,29 @@ class _BookingScreenState extends State<BookingScreen> {
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              Text(
-                "Doctor: $doctorName",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+
+              // Doctor Dropdown
+              doctorsList.isEmpty
+                  ? const Text("Loading doctors...")
+                  : DropdownButtonFormField<String>(
+                      value: selectedDoctor,
+                      items: doctorsList.map((doctor) {
+                        return DropdownMenuItem<String>(
+                          value: doctor['name'],
+                          child: Text(doctor['name']),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedDoctor = value;
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'Select Doctor',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+
               const SizedBox(height: 20),
               TextField(
                 controller: _nameController,
