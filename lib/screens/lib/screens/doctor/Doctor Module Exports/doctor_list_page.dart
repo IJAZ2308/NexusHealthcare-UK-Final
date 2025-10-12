@@ -52,6 +52,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
     _fetchDoctors();
   }
 
+  /// Fetch only approved/verified doctors from Realtime Database
   Future<void> _fetchDoctors() async {
     setState(() => _isLoading = true);
 
@@ -64,7 +65,8 @@ class _DoctorListPageState extends State<DoctorListPage> {
         if (value['role'] != null &&
             (value['role'] == 'labDoctor' ||
                 value['role'] == 'consultingDoctor') &&
-            value['status'] == 'verified') {
+            value['status'] == 'approved') {
+          // Only approved doctors
           Doctor doctor = Doctor.fromMap(value, key, id: null);
           tmpDoctors.add(doctor);
         }
@@ -200,7 +202,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
   }
 }
 
-// Category Page
+/// Category Page
 class DoctorCategoryPage extends StatelessWidget {
   final String category;
   final List<Doctor> doctors;
@@ -244,7 +246,7 @@ class DoctorCategoryPage extends StatelessWidget {
   }
 }
 
-// Category Card
+/// Category Card
 Widget _buildCategoryCard(
   String title,
   dynamic icon, {

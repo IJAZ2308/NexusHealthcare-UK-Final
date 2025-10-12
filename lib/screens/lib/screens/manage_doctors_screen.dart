@@ -26,9 +26,9 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
   Future<void> _deleteDoctor(String doctorId) async {
     await _dbRef.child(doctorId).remove();
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Doctor deleted")));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Doctor deleted successfully")),
+    );
   }
 
   Future<void> _openUrl(String url) async {
@@ -47,7 +47,6 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
     }
   }
 
-  // Helper function to get status color
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -63,17 +62,23 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Manage Doctors")),
+      appBar: AppBar(
+        title: const Text("Manage Doctors"),
+        backgroundColor: Colors.teal,
+        centerTitle: true,
+      ),
       body: StreamBuilder<DatabaseEvent>(
         stream: _dbRef.onValue,
         builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
           if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
             return const Center(child: Text("No doctors found"));
           }
 
           final Map<dynamic, dynamic> doctorsMap =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-
           final List<Map<dynamic, dynamic>> doctors = doctorsMap.entries.map((
             e,
           ) {
@@ -87,23 +92,37 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
             itemBuilder: (context, index) {
               final data = doctors[index];
               final doctorId = data['doctorId'] ?? '';
-              final name = data['name'] ?? data['email'] ?? 'Unknown';
+              final name = data['name'] ?? data['email'] ?? 'Unknown Doctor';
               final email = data['email'] ?? 'Not provided';
               final specialty = data['specialty'] ?? 'Not specified';
               final status = data['status'] ?? 'pending';
               final licenseUrl = data['licenseUrl'] ?? '';
 
               return Card(
-                margin: const EdgeInsets.all(8),
+                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: ListTile(
                   isThreeLine: true,
-                  leading: CircleAvatar(child: Text(name[0].toUpperCase())),
-                  title: Text(name),
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.teal.shade100,
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.teal),
+                    ),
+                  ),
+                  title: Text(
+                    name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("Email: $email"),
                       Text("Specialty: $specialty"),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
                           const Text("Status: "),
@@ -121,23 +140,32 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
+                                fontSize: 12,
                               ),
                             ),
                           ),
                         ],
                       ),
                       if (licenseUrl.isNotEmpty)
-                        TextButton(
-                          onPressed: () => _openUrl(licenseUrl),
-                          child: const Text(
-                            "View License",
-                            style: TextStyle(color: Colors.blue),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: TextButton.icon(
+                            onPressed: () => _openUrl(licenseUrl),
+                            icon: const Icon(
+                              Icons.description,
+                              size: 18,
+                              color: Colors.blue,
+                            ),
+                            label: const Text(
+                              "View License",
+                              style: TextStyle(color: Colors.blue),
+                            ),
                           ),
                         ),
                     ],
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  trailing: Wrap(
+                    spacing: 4,
                     children: [
                       IconButton(
                         icon: const Icon(Icons.check, color: Colors.green),
@@ -167,7 +195,10 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
                                 ),
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text('Delete'),
+                                  child: const Text(
+                                    'Delete',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
                                 ),
                               ],
                             ),

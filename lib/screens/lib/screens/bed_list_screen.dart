@@ -1,9 +1,11 @@
 import 'dart:async';
-import 'package:dr_shahin_uk/screens/booking_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/book_appointment_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/models/doctor.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dr_shahin_uk/screens/booking_screen.dart';
 
 class BedListScreen extends StatefulWidget {
   const BedListScreen({super.key});
@@ -130,7 +132,9 @@ class BedListScreenState extends State<BedListScreen> {
             "${entry.key.toUpperCase()} Beds: $count",
             style: TextStyle(
               fontSize: 14,
-              color: count == 0 ? Colors.grey : Colors.black,
+              color: count == 0
+                  ? Colors.red
+                  : Colors.black, // Highlight zero beds in red
             ),
           );
         }).toList(),
@@ -138,7 +142,7 @@ class BedListScreenState extends State<BedListScreen> {
     } else if (beds != null) {
       return Text("Total Beds: $beds", style: const TextStyle(fontSize: 14));
     } else {
-      return const Text("Beds: N/A", style: TextStyle(fontSize: 14));
+      return const Text("Beds: 0", style: TextStyle(fontSize: 14));
     }
   }
 
@@ -147,6 +151,15 @@ class BedListScreenState extends State<BedListScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => BookingScreen(hospital: hospital),
+      ),
+    );
+  }
+
+  void _bookAppointment(Doctor doctor) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookAppointmentScreen(doctor: doctor),
       ),
     );
   }
@@ -244,37 +257,117 @@ class BedListScreenState extends State<BedListScreen> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-                              Center(
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: totalBeds > 0
-                                        ? Colors.blueAccent
-                                        : Colors.grey,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+
+                              // Buttons: Book Bed + Book Appointment
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blueAccent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
                                     ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 10,
-                                    ),
-                                  ),
-                                  icon: const Icon(
-                                    Icons.local_hotel,
-                                    color: Colors.white,
-                                  ),
-                                  label: Text(
-                                    totalBeds > 0
-                                        ? "Book a Bed"
-                                        : "No Beds Available",
-                                    style: const TextStyle(
+                                    icon: const Icon(
+                                      Icons.local_hotel,
                                       color: Colors.white,
-                                      fontSize: 16,
                                     ),
+                                    label: Text(
+                                      "Book Bed ($totalBeds)",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    onPressed: () =>
+                                        _bookBed(hospital), // Always enabled
                                   ),
-                                  onPressed: totalBeds > 0
-                                      ? () => _bookBed(hospital)
-                                      : null,
-                                ),
+
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.deepPurple,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.calendar_today,
+                                      color: Colors.white,
+                                    ),
+                                    label: const Text(
+                                      "Book Appointment",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      if (hospital['doctorId'] != null &&
+                                          hospital['doctorId'] != 'unknown') {
+                                        Doctor doctor = Doctor(
+                                          uid: hospital['doctorId'],
+                                          firstName:
+                                              hospital['doctorFirstName'] ??
+                                              "Doctor",
+                                          lastName:
+                                              hospital['doctorLastName'] ?? "",
+                                          category:
+                                              hospital['category'] ?? "General",
+                                          qualification:
+                                              hospital['qualification'] ?? "",
+                                          profileImageUrl:
+                                              hospital['profileImageUrl'] ??
+                                              "https://via.placeholder.com/150",
+                                          isVerified:
+                                              hospital['isVerified'] ?? false,
+                                          city: '',
+                                          email: '',
+                                          phoneNumber: '',
+                                          yearsOfExperience:
+                                              hospital['yearsOfExperience']
+                                                  is int
+                                              ? hospital['yearsOfExperience']
+                                              : 0,
+                                          latitude: hospital['latitude'] ?? 0.0,
+                                          longitude:
+                                              hospital['longitude'] ?? 0.0,
+                                          numberOfReviews:
+                                              hospital['numberOfReviews'] is int
+                                              ? hospital['numberOfReviews']
+                                              : 0,
+                                          totalReviews:
+                                              hospital['totalReviews'] is int
+                                              ? hospital['totalReviews']
+                                              : 0,
+                                          workingAt: '',
+                                          status: '',
+                                          specializations: [],
+                                        );
+                                        _bookAppointment(doctor);
+                                      } else {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              "No doctor assigned for this hospital.",
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
                           ),

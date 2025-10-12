@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/models/doctor.dart';
 
 class DoctorCard extends StatefulWidget {
@@ -16,10 +16,14 @@ class _DoctorCardState extends State<DoctorCard> {
   late int numberOfReviews;
   late double totalReviews;
 
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+    'users',
+  );
+
   @override
   void initState() {
     super.initState();
-    totalReviews = widget.doctor.totalReviews as double;
+    totalReviews = widget.doctor.totalReviews.toDouble();
     numberOfReviews = widget.doctor.numberOfReviews;
     averageRating = numberOfReviews > 0 ? totalReviews / numberOfReviews : 0;
   }
@@ -65,18 +69,40 @@ class _DoctorCardState extends State<DoctorCard> {
                   return;
                 }
 
-                final doctorRef = FirebaseFirestore.instance
-                    .collection("doctors")
-                    .doc(widget.doctor.uid);
+                final doctorRef = _dbRef.child(widget.doctor.uid);
 
-                // Update Firestore
-                await doctorRef.update({
-                  "totalReviews": FieldValue.increment(rating),
-                  "numberOfReviews": FieldValue.increment(1),
-                  "reviews": FieldValue.arrayUnion([reviewController.text]),
-                });
+                // Update Realtime DB
+                await doctorRef.runTransaction(
+                  (mutableData) async {
+                        final data =
+                            mutableData?.value as Map<dynamic, dynamic>? ?? {};
 
-                // Update local state for real-time UI refresh
+                        // Update totals
+                        double currentTotal = (data['totalReviews'] ?? 0)
+                            .toDouble();
+                        int currentCount = (data['numberOfReviews'] ?? 0);
+
+                        currentTotal += rating;
+                        currentCount += 1;
+
+                        List<dynamic> reviews = List.from(
+                          data['reviews'] ?? [],
+                        );
+                        reviews.add(reviewController.text);
+
+                        mutableData.value = {
+                          ...data,
+                          'totalReviews': currentTotal,
+                          'numberOfReviews': currentCount,
+                          'reviews': reviews,
+                        };
+
+                        return mutableData;
+                      }
+                      as TransactionHandler,
+                );
+
+                // Update local state
                 setState(() {
                   totalReviews += rating;
                   numberOfReviews += 1;
