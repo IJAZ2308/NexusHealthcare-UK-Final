@@ -1,10 +1,15 @@
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
+import 'package:dr_shahin_uk/screens/view_documents_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import '../../upload_document_screen.dart';
+
+// Existing imports
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
+import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
 import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
+
+// ✅ Add this new import
 
 class ConsultingDoctorDashboard extends StatefulWidget {
   const ConsultingDoctorDashboard({super.key});
@@ -107,7 +112,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     });
   }
 
-  /// ✅ Logout with confirmation dialog
   void _logout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
@@ -213,6 +217,47 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     );
   }
 
+  // ✅ NEW: Pick patient to view uploaded documents
+  void _pickPatientToViewDocuments() {
+    if (_patients.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text("Select Patient to View Documents"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _patients.length,
+              itemBuilder: (context, index) {
+                final patient = _patients[index];
+                return ListTile(
+                  title: Text(patient['name']!),
+                  onTap: () {
+                    Navigator.pop(context);
+                    final doctorId = _auth.currentUser!.uid;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ViewDocumentsScreen(
+                          patientId: patient['uid']!,
+                          patientName: patient['name']!,
+                          doctorId: doctorId,
+                          doctorName: _doctorName,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -261,6 +306,12 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                     onTap: _pickPatientToViewReports,
                   ),
                   _dashboardCard(
+                    icon: Icons.folder_open,
+                    title: "View Documents",
+                    color: Colors.orange,
+                    onTap: _pickPatientToViewDocuments,
+                  ),
+                  _dashboardCard(
                     icon: Icons.chat,
                     title: "Chats",
                     color: Colors.blue,
@@ -276,9 +327,9 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                 ],
               ),
               const SizedBox(height: 20),
-              Align(
+              const Align(
                 alignment: Alignment.centerLeft,
-                child: const Text(
+                child: Text(
                   "Upcoming Appointments:",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),

@@ -4,7 +4,13 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ViewDocumentsScreen extends StatelessWidget {
-  const ViewDocumentsScreen({super.key});
+  const ViewDocumentsScreen({
+    super.key,
+    required String patientId,
+    required String patientName,
+    required String doctorName,
+    required String doctorId,
+  });
 
   @override
   Widget build(BuildContext context) {

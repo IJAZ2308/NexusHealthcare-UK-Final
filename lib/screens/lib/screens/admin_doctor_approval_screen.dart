@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart'; // Fix for kDebugMode
+import 'package:http/http.dart' as http;
 
 class AdminDoctorApprovalScreen extends StatefulWidget {
   const AdminDoctorApprovalScreen({super.key});
@@ -14,14 +16,13 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'users',
   );
-
   List<Map<String, dynamic>> pendingDoctors = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _listenPendingDoctors(); // Real-time listener
+    _listenPendingDoctors();
   }
 
   /// Real-time listener for pending doctors
@@ -82,6 +83,21 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen> {
         );
   }
 
+  /// Call Cloud Function to send notification
+  Future<void> _sendNotification(String doctorId, String status) async {
+    try {
+      final url =
+          'https://YOUR_CLOUD_FUNCTION_URL/notifyDoctor'; // Replace with your function URL
+      await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'doctorId': doctorId, 'status': status}),
+      );
+    } catch (e) {
+      if (kDebugMode) print('Error calling Cloud Function: $e');
+    }
+  }
+
   /// Approve doctor
   Future<void> _approveDoctor(String doctorId) async {
     try {
@@ -89,6 +105,9 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen> {
         'status': 'approved',
         'isVerified': true,
       });
+
+      await _sendNotification(doctorId, 'approved');
+
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -108,6 +127,9 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen> {
         'status': 'rejected',
         'isVerified': false,
       });
+
+      await _sendNotification(doctorId, 'rejected');
+
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

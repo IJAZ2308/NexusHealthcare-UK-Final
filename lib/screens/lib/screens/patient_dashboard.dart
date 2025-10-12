@@ -125,7 +125,12 @@ class PatientDashboard extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const ViewDocumentsScreen(),
+                        builder: (_) => ViewDocumentsScreen(
+                          patientId: '',
+                          patientName: '',
+                          doctorName: '',
+                          doctorId: '',
+                        ),
                       ),
                     );
                   },

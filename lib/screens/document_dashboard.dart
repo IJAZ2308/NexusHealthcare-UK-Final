@@ -35,7 +35,14 @@ class DocumentDashboardScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ViewDocumentsScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => ViewDocumentsScreen(
+                      patientId: '',
+                      patientName: '',
+                      doctorName: '',
+                      doctorId: '',
+                    ),
+                  ),
                 );
               },
             ),

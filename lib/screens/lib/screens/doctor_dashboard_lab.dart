@@ -1,7 +1,8 @@
+import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import '../../upload_document_screen.dart';
+
 import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
 
 class LabDoctorDashboard extends StatefulWidget {
