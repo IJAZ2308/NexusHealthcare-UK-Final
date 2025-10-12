@@ -14,7 +14,7 @@ class Doctor {
   final int numberOfReviews;
   final int totalReviews;
   final bool isVerified;
-  final String workingAt; // Hospital name where doctor works
+  final String workingAt; // Hospital name
   final String status; // pending / approved / rejected
   final List<String> specializations; // ✅ Multiple specializations
 
@@ -36,7 +36,7 @@ class Doctor {
     required this.isVerified,
     required this.workingAt,
     required this.status,
-    required this.specializations, // ✅ added
+    required this.specializations,
   });
 
   factory Doctor.fromMap(
@@ -64,7 +64,7 @@ class Doctor {
       status: data['status'] ?? 'pending',
       specializations: data['specializations'] != null
           ? List<String>.from(data['specializations'])
-          : <String>[], // ✅ Safely load as list
+          : <String>[],
     );
   }
 
@@ -87,7 +87,14 @@ class Doctor {
       'isVerified': isVerified,
       'workingAt': workingAt,
       'status': status,
-      'specializations': specializations, // ✅ include in DB map
+      'specializations': specializations,
     };
   }
+
+  double get averageRating {
+    if (numberOfReviews == 0) return 0.0;
+    return totalReviews / numberOfReviews;
+  }
+
+  String get fullName => '$firstName $lastName';
 }

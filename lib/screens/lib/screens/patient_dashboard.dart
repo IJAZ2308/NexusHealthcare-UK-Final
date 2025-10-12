@@ -88,7 +88,7 @@ class PatientDashboard extends StatelessWidget {
                 _dashboardCard(
                   context,
                   icon: Icons.bed,
-                  title: "Bed Availability",
+                  title: "Bed Availability & Appointment booking",
                   color: Colors.orange,
                   onTap: () {
                     Navigator.push(
