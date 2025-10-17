@@ -4,6 +4,7 @@ class Doctor {
   final String city;
   final String email;
   final String firstName;
+  final String location;
   final String lastName;
   final String profileImageUrl;
   final String qualification;
@@ -23,6 +24,7 @@ class Doctor {
     required this.category,
     required this.city,
     required this.email,
+    required this.location,
     required this.firstName,
     required this.lastName,
     required this.profileImageUrl,
@@ -65,6 +67,7 @@ class Doctor {
       specializations: data['specializations'] != null
           ? List<String>.from(data['specializations'])
           : <String>[],
+      location: '',
     );
   }
 

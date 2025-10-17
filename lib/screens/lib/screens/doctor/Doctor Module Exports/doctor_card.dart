@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/models/doctor.dart';
+import '../../models/doctor.dart';
 
 class DoctorCard extends StatefulWidget {
   final Doctor doctor;
+  final VoidCallback? onTap;
 
-  const DoctorCard({super.key, required this.doctor});
+  const DoctorCard({super.key, required this.doctor, this.onTap});
 
   @override
   State<DoctorCard> createState() => _DoctorCardState();
@@ -71,13 +72,12 @@ class _DoctorCardState extends State<DoctorCard> {
 
                 final doctorRef = _dbRef.child(widget.doctor.uid);
 
-                // Update Realtime DB
+                // Update Firebase Realtime Database
                 await doctorRef.runTransaction(
                   (mutableData) async {
                         final data =
                             mutableData?.value as Map<dynamic, dynamic>? ?? {};
 
-                        // Update totals
                         double currentTotal = (data['totalReviews'] ?? 0)
                             .toDouble();
                         int currentCount = (data['numberOfReviews'] ?? 0);
@@ -88,21 +88,21 @@ class _DoctorCardState extends State<DoctorCard> {
                         List<dynamic> reviews = List.from(
                           data['reviews'] ?? [],
                         );
-                        reviews.add(reviewController.text);
+                        if (reviewController.text.isNotEmpty) {
+                          reviews.add(reviewController.text);
+                        }
 
-                        mutableData.value = {
+                        mutableData!.value = {
                           ...data,
                           'totalReviews': currentTotal,
                           'numberOfReviews': currentCount,
                           'reviews': reviews,
                         };
-
                         return mutableData;
                       }
                       as TransactionHandler,
                 );
 
-                // Update local state
                 setState(() {
                   totalReviews += rating;
                   numberOfReviews += 1;
@@ -127,86 +127,111 @@ class _DoctorCardState extends State<DoctorCard> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundImage: widget.doctor.profileImageUrl.isNotEmpty
-                      ? NetworkImage(widget.doctor.profileImageUrl)
-                      : const AssetImage("assets/images/doctor.png")
-                            as ImageProvider,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "${widget.doctor.firstName} ${widget.doctor.lastName}",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "${widget.doctor.category} • ${widget.doctor.workingAt}",
-                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 18),
-                          const SizedBox(width: 4),
-                          Text(
-                            "${averageRating.toStringAsFixed(1)} ($numberOfReviews reviews)",
-                            style: const TextStyle(fontSize: 13),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundImage: widget.doctor.profileImageUrl.isNotEmpty
+                        ? NetworkImage(widget.doctor.profileImageUrl)
+                        : const AssetImage('assets/images/default_doctor.png')
+                              as ImageProvider,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.doctor.fullName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (widget.doctor.specializations.isNotEmpty)
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: -4,
-                          children: widget.doctor.specializations
-                              .map(
-                                (spec) => Chip(
-                                  label: Text(
-                                    spec,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.white,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${widget.doctor.category} • ${widget.doctor.workingAt}",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.doctor.city,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              "${averageRating.toStringAsFixed(1)} ($numberOfReviews reviews)",
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (widget.doctor.specializations.isNotEmpty)
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: -4,
+                            children: widget.doctor.specializations
+                                .map(
+                                  (spec) => Chip(
+                                    label: Text(
+                                      spec,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    backgroundColor: Colors.blueAccent,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
                                     ),
                                   ),
-                                  backgroundColor: Colors.blueAccent,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                    ],
+                                )
+                                .toList(),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () => _writeReview(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                const Icon(Icons.arrow_forward_ios, size: 16),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => _writeReview(context),
-              child: const Text("Write Review"),
-            ),
-          ],
+                child: const Text("Write Review"),
+              ),
+            ],
+          ),
         ),
       ),
     );

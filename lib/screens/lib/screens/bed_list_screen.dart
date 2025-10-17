@@ -150,7 +150,7 @@ class BedListScreenState extends State<BedListScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BookingScreen(hospital: hospital),
+        builder: (context) => BedBookingScreen(hospital: hospital),
       ),
     );
   }
@@ -352,6 +352,7 @@ class BedListScreenState extends State<BedListScreen> {
                                           workingAt: '',
                                           status: '',
                                           specializations: [],
+                                          location: '',
                                         );
                                         _bookAppointment(doctor);
                                       } else {

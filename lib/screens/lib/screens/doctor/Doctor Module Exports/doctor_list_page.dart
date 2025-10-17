@@ -1,4 +1,3 @@
-// lib/screens/patient/doctor_list_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../models/doctor.dart';
@@ -52,10 +51,9 @@ class _DoctorListPageState extends State<DoctorListPage> {
     _fetchDoctors();
   }
 
-  /// Fetch only approved/verified doctors from Realtime Database
+  /// Fetch approved doctors
   Future<void> _fetchDoctors() async {
     setState(() => _isLoading = true);
-
     final snapshot = await _dbRef.get();
     List<Doctor> tmpDoctors = [];
 
@@ -66,7 +64,6 @@ class _DoctorListPageState extends State<DoctorListPage> {
             (value['role'] == 'labDoctor' ||
                 value['role'] == 'consultingDoctor') &&
             value['status'] == 'approved') {
-          // Only approved doctors
           Doctor doctor = Doctor.fromMap(value, key, id: null);
           tmpDoctors.add(doctor);
         }
@@ -90,10 +87,28 @@ class _DoctorListPageState extends State<DoctorListPage> {
     }
   }
 
+  void _openAppointmentForm() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AppointmentBookingPage(doctors: _doctors),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Doctors")),
+      appBar: AppBar(
+        title: const Text("Doctors"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: _openAppointmentForm,
+            tooltip: "Book Appointment",
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
@@ -133,7 +148,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
                                 : _doctors
                                       .where(
                                         (d) =>
-                                            d.category.toLowerCase() ==
+                                            (d.category).toLowerCase() ==
                                             spec["title"]!.toLowerCase(),
                                       )
                                       .toList();
@@ -202,7 +217,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
   }
 }
 
-/// Category Page
+/// CATEGORY PAGE
 class DoctorCategoryPage extends StatelessWidget {
   final String category;
   final List<Doctor> doctors;
@@ -246,7 +261,7 @@ class DoctorCategoryPage extends StatelessWidget {
   }
 }
 
-/// Category Card
+/// CATEGORY CARD WIDGET
 Widget _buildCategoryCard(
   String title,
   dynamic icon, {
@@ -277,18 +292,7 @@ Widget _buildCategoryCard(
                         ? Colors.white
                         : const Color(0xff006AFA),
                   )
-                : Image.asset(
-                    icon,
-                    width: 40,
-                    height: 40,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(
-                        Icons.image_not_supported,
-                        size: 40,
-                        color: Colors.grey,
-                      );
-                    },
-                  ),
+                : Image.asset(icon, width: 40, height: 40),
             const SizedBox(height: 16),
             Text(
               title,
@@ -304,4 +308,39 @@ Widget _buildCategoryCard(
       ),
     ),
   );
+}
+
+/// Simple appointment booking page to avoid undefined reference
+class AppointmentBookingPage extends StatelessWidget {
+  final List<Doctor> doctors;
+
+  const AppointmentBookingPage({super.key, required this.doctors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Book Appointment')),
+      body: doctors.isEmpty
+          ? const Center(child: Text('No doctors available for booking'))
+          : ListView.builder(
+              itemCount: doctors.length,
+              itemBuilder: (context, index) {
+                // Display a basic list entry for each doctor; adapt fields as needed.
+                return ListTile(
+                  title: Text('Doctor ${index + 1}'),
+                  subtitle: const Text('Tap to view details'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            DoctorDetailPage(doctor: doctors[index]),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+    );
+  }
 }
