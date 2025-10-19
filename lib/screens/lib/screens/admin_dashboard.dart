@@ -1,3 +1,4 @@
+import 'package:dr_shahin_uk/screens/lib/screens/admin_doctor_approval_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -585,7 +586,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 badgeCount: pendingDoctors,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const VerifyPending()),
+                  MaterialPageRoute(
+                    builder: (_) => const AdminDoctorApprovalScreen(),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
