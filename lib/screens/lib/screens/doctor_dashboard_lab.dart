@@ -1,4 +1,6 @@
+import 'package:dr_shahin_uk/screens/lib/screens/patlabappointmentpage.dart';
 import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
+import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -27,8 +29,11 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   void initState() {
     super.initState();
     _fetchDoctorData();
-    _fetchPatients();
-    _fetchAppointments();
+    _fetchAppointments().then((_) => _fetchPatients());
+
+    // Initialize notifications
+    NotificationService.initialize(); // 👈 local notifications
+    NotificationService.setupFCM(); // 👈 FCM token & listeners
   }
 
   Future<void> _fetchDoctorData() async {
@@ -44,51 +49,13 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     }
   }
 
-  Future<void> _fetchPatients() async {
-    setState(() => _loadingPatients = true);
-
-    final snapshot = await _db.orderByChild('role').equalTo('patient').get();
-
-    final List<Map<String, String>> loadedPatients = [];
-    final Map<String, List<Map<String, String>>> loadedReports = {};
-
-    if (snapshot.exists) {
-      final Map<dynamic, dynamic> patientsMap =
-          snapshot.value as Map<dynamic, dynamic>;
-      patientsMap.forEach((key, value) {
-        loadedPatients.add({'uid': key, 'name': value['name'] ?? 'Patient'});
-
-        // Fetch uploaded reports for this patient
-        final patientReports = <Map<String, String>>[];
-        if (value['reports'] != null) {
-          final Map<dynamic, dynamic> reportsMap = Map<String, dynamic>.from(
-            value['reports'],
-          );
-          reportsMap.forEach((_, report) {
-            patientReports.add({
-              'name': report['reportName'] ?? 'Report',
-              'url': report['reportUrl'] ?? '',
-            });
-          });
-        }
-        loadedReports[key] = patientReports;
-      });
-    }
-
-    setState(() {
-      _patients = loadedPatients;
-      _patientReports = loadedReports;
-      _loadingPatients = false;
-    });
-  }
-
   Future<void> _fetchAppointments() async {
     setState(() => _loadingAppointments = true);
     final doctorId = _auth.currentUser!.uid;
     final snapshot = await FirebaseDatabase.instance
         .ref()
         .child('appointments')
-        .orderByChild('doctorId')
+        .orderByChild('labDoctorId')
         .equalTo(doctorId)
         .get();
 
@@ -103,6 +70,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
           "time": value['time'] ?? '',
           "patientId": value['patientId'] ?? '',
           "status": value['status'] ?? '',
+          "requestingDoctorId": value['doctorId'] ?? '',
         });
       });
     }
@@ -113,7 +81,46 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     });
   }
 
-  // 🔹 Updated logout with confirmation dialog
+  Future<void> _fetchPatients() async {
+    setState(() => _loadingPatients = true);
+
+    final List<Map<String, String>> loadedPatients = [];
+    final Map<String, List<Map<String, String>>> loadedReports = {};
+
+    for (var appt in _appointments) {
+      final pid = appt['patientId']!;
+      if (!loadedPatients.any((p) => p['uid'] == pid)) {
+        final patientSnapshot = await _db.child(pid).get();
+        if (patientSnapshot.exists) {
+          final pData = Map<String, dynamic>.from(patientSnapshot.value as Map);
+          loadedPatients.add({'uid': pid, 'name': pData['name'] ?? 'Patient'});
+
+          // Fetch patient reports
+          final patientReports = <Map<String, String>>[];
+          if (pData['reports'] != null) {
+            final Map<dynamic, dynamic> reportsMap = Map<String, dynamic>.from(
+              pData['reports'],
+            );
+            reportsMap.forEach((key, report) {
+              patientReports.add({
+                'name': report['reportName'] ?? 'Report',
+                'url': report['reportUrl'] ?? '',
+                'doctorId': report['doctorId'] ?? '',
+              });
+            });
+          }
+          loadedReports[pid] = patientReports;
+        }
+      }
+    }
+
+    setState(() {
+      _patients = loadedPatients;
+      _patientReports = loadedReports;
+      _loadingPatients = false;
+    });
+  }
+
   void _logout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
@@ -144,7 +151,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     if (_patients.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("No patients available to upload reports."),
+          content: Text("No patients with appointments assigned."),
         ),
       );
       return;
@@ -162,6 +169,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
               itemCount: _patients.length,
               itemBuilder: (context, index) {
                 final patient = _patients[index];
+
                 return ListTile(
                   title: Text(patient['name']!),
                   subtitle:
@@ -176,14 +184,21 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                       : null,
                   onTap: () {
                     Navigator.pop(context);
-                    final doctorId = _auth.currentUser!.uid;
+                    final labDoctorId = _auth.currentUser!.uid;
+
+                    final appt = _appointments.firstWhere(
+                      (a) => a['patientId'] == patient['uid'],
+                    );
+                    final requestingDoctorId =
+                        appt['requestingDoctorId'] ?? labDoctorId;
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => UploadDocumentScreen(
                           patientId: patient['uid']!,
                           patientName: patient['name']!,
-                          doctorId: doctorId,
+                          doctorId: requestingDoctorId,
                         ),
                       ),
                     ).then((_) => _fetchPatients());
@@ -205,33 +220,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text("Your Appointments"),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _appointments.length,
-              itemBuilder: (context, index) {
-                final appt = _appointments[index];
-                final patient = _patients.firstWhere(
-                  (p) => p['uid'] == appt['patientId'],
-                  orElse: () => {'name': 'Unknown'},
-                )['name'];
-                return ListTile(
-                  title: Text(patient ?? 'Unknown'),
-                  subtitle: Text(
-                    "${appt['date']} at ${appt['time']}\nStatus: ${appt['status']}",
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PatLabAppointment()), // ✅ Updated
     );
   }
 
@@ -280,7 +271,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                   ),
                   _dashboardCard(
                     icon: Icons.event,
-                    title: "Appointments",
+                    title: "Lab Appointments",
                     color: Colors.orange,
                     badgeCount: _appointments.length,
                     onTap: _viewAppointments,

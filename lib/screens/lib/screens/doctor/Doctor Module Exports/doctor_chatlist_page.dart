@@ -1,8 +1,8 @@
-import 'package:dr_shahin_uk/screens/lib/screens/models/patient.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/material.dart';
 import '../chat/chat_screen.dart';
+import '../../models/patient.dart';
 
 class DoctorChatlistPage extends StatefulWidget {
   const DoctorChatlistPage({super.key});
@@ -13,10 +13,13 @@ class DoctorChatlistPage extends StatefulWidget {
 
 class _DoctorChatlistPageState extends State<DoctorChatlistPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final DatabaseReference _chatListDatabase =
-      FirebaseDatabase.instance.ref().child('ChatList');
-  final DatabaseReference _patientsDatabase =
-      FirebaseDatabase.instance.ref().child('Patients');
+  final DatabaseReference _chatListDb = FirebaseDatabase.instance.ref().child(
+    'ChatList',
+  );
+  final DatabaseReference _patientsDb = FirebaseDatabase.instance.ref().child(
+    'users',
+  ); // updated to 'users' for patients
+
   List<Patient> _chatList = [];
   bool _isLoading = true;
   late String doctorId;
@@ -29,36 +32,38 @@ class _DoctorChatlistPageState extends State<DoctorChatlistPage> {
   }
 
   Future<void> _fetchChatList() async {
-    if (doctorId.isNotEmpty) {
-      try {
-        final DatabaseEvent event =
-            await _chatListDatabase.child(doctorId).once();
-        DataSnapshot snapshot = event.snapshot;
-        List<Patient> tempChatList = [];
+    if (doctorId.isEmpty) return;
 
-        if (snapshot.value != null) {
-          Map<dynamic, dynamic> values =
-              snapshot.value as Map<dynamic, dynamic>;
+    try {
+      final DataSnapshot snapshot = await _chatListDb.child(doctorId).get();
 
-          for (var userId in values.keys) {
-            final DatabaseEvent patientEvent =
-                await _patientsDatabase.child(userId).once();
-            DataSnapshot patientSnapshot = patientEvent.snapshot;
-            if (patientSnapshot.value != null) {
-              Map<dynamic, dynamic> patientMap =
-                  patientSnapshot.value as Map<dynamic, dynamic>;
-              tempChatList
-                  .add(Patient.fromMap(Map<String, dynamic>.from(patientMap)));
-            }
+      List<Patient> tempChatList = [];
+
+      if (snapshot.exists && snapshot.value != null) {
+        final Map<dynamic, dynamic> chatMap =
+            snapshot.value as Map<dynamic, dynamic>;
+
+        for (var patientId in chatMap.keys) {
+          final patientSnapshot = await _patientsDb.child(patientId).get();
+
+          if (patientSnapshot.exists && patientSnapshot.value != null) {
+            final patientData = Map<String, dynamic>.from(
+              patientSnapshot.value as Map,
+            );
+            tempChatList.add(Patient.fromMap(patientData));
           }
         }
-        setState(() {
-          _chatList = tempChatList;
-          _isLoading = false;
-        });
-      } catch (error) {
-        // error message
       }
+
+      setState(() {
+        _chatList = tempChatList;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      debugPrint('Error fetching chat list: $e');
     }
   }
 
@@ -66,36 +71,62 @@ class _DoctorChatlistPageState extends State<DoctorChatlistPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat with'),
+        title: const Text('Chats with Patients'),
+        backgroundColor: const Color(0xff0064FA),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _chatList.isEmpty
-              ? const Center(child: Text('No chats available'))
-              : ListView.builder(
-                  itemCount: _chatList.length,
-                  itemBuilder: (context, index) {
-                    final patient = _chatList[index];
-                    return Card(
-                      elevation: 2.0,
-                      margin: const EdgeInsets.symmetric(
-                          vertical: 8.0, horizontal: 16.0),
-                      child: ListTile(
-                        title: Text(
-                            'Chat with ${patient.firstName} ${patient.lastName}'),
-                        onTap: () {
-                          Navigator.of(context).push(MaterialPageRoute(
-                              builder: (context) => ChatScreen(
-                                    doctorId: doctorId,
-                                    patientId: patient.uid,
-                                    patientName:
-                                        '${patient.firstName} ${patient.lastName}',
-                                    doctorName: '',
-                                  )));
-                        },
+          ? const Center(
+              child: Text('No chats available', style: TextStyle(fontSize: 16)),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              itemCount: _chatList.length,
+              itemBuilder: (context, index) {
+                final patient = _chatList[index];
+                final patientName = '${patient.firstName} ${patient.lastName}';
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.deepPurple.shade100,
+                      child: const Icon(Icons.person, color: Colors.deepPurple),
+                    ),
+                    title: Text(
+                      patientName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
                       ),
-                    );
-                  }),
+                    ),
+                    trailing: const Icon(Icons.chat, color: Colors.blue),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            doctorId: doctorId,
+                            patientId: patient.uid,
+                            patientName: patientName,
+                            doctorName:
+                                '', // optional, can fetch doctor name if needed
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
     );
   }
 }

@@ -1,13 +1,87 @@
+import 'package:dr_shahin_uk/screens/lib/screens/patlabappointmentpage.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/patient/appointment_list_page.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'bed_list_screen.dart';
+import 'dart:io';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-class PatientDashboard extends StatelessWidget {
+/// ------------------------ LOCAL NOTIFICATIONS ------------------------
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+const AndroidNotificationChannel channel = AndroidNotificationChannel(
+  'high_importance_channel', // id
+  'High Importance Notifications', // name
+  description: 'This channel is used for important notifications.',
+  importance: Importance.high,
+);
+
+class PatientDashboard extends StatefulWidget {
   const PatientDashboard({super.key});
+
+  @override
+  State<PatientDashboard> createState() => _PatientDashboardState();
+}
+
+class _PatientDashboardState extends State<PatientDashboard> {
+  final user = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupFCM();
+  }
+
+  Future<void> _setupFCM() async {
+    // Foreground listener
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      _showLocalNotification(message);
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      _showLocalNotification(message);
+    });
+
+    // Save FCM token
+    String? token = await FirebaseMessaging.instance.getToken();
+    if (token != null && user != null) {
+      await FirebaseDatabase.instance.ref("users/${user!.uid}").update({
+        "fcmToken": token,
+      });
+      debugPrint("🔑 Saved FCM Token: $token");
+    }
+  }
+
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    RemoteNotification? notification = message.notification;
+    if (notification != null && Platform.isAndroid) {
+      final AndroidNotificationDetails androidDetails =
+          AndroidNotificationDetails(
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
+            importance: Importance.high,
+            priority: Priority.high,
+          );
+
+      final NotificationDetails platformDetails = NotificationDetails(
+        android: androidDetails,
+      );
+
+      await flutterLocalNotificationsPlugin.show(
+        notification.hashCode,
+        notification.title,
+        notification.body,
+        platformDetails,
+      );
+    }
+  }
 
   Future<void> _logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
@@ -18,7 +92,6 @@ class PatientDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     final userEmail = user?.email ?? 'Patient';
 
     return Scaffold(
@@ -85,14 +158,11 @@ class PatientDashboard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 25),
-
             const Text(
               "Your Health Services",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-
-            // 🧩 Dashboard Grid
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -176,6 +246,21 @@ class PatientDashboard extends StatelessWidget {
                     );
                   },
                 ),
+                _animatedDashboardCard(
+                  context,
+                  icon: Icons.science,
+                  title: "Lab Appointments",
+                  color1: Colors.pink,
+                  color2: Colors.redAccent,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PatLabAppointment(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ],
@@ -184,7 +269,6 @@ class PatientDashboard extends StatelessWidget {
     );
   }
 
-  // 🎨 Animated Dashboard Card Widget
   Widget _animatedDashboardCard(
     BuildContext context, {
     required IconData icon,

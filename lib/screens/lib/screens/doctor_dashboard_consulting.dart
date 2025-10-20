@@ -1,15 +1,13 @@
-import 'package:dr_shahin_uk/screens/view_documents_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
+import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
-// Existing imports
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
 import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
+import 'package:dr_shahin_uk/screens/view_documents_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
 import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
-
-// ✅ Add this new import
 
 class ConsultingDoctorDashboard extends StatefulWidget {
   const ConsultingDoctorDashboard({super.key});
@@ -32,12 +30,14 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
   void initState() {
     super.initState();
     _initDoctor();
+    NotificationService.initialize(); // 👈 initialize local notifications
+    NotificationService.setupFCM(); // 👈 setup FCM token & listeners
   }
 
   Future<void> _initDoctor() async {
     await _fetchDoctorData();
-    await _fetchPatients();
     await _fetchAppointments();
+    await _fetchDoctorPatients(); // 👈 fetch patients related to this doctor
   }
 
   Future<void> _fetchDoctorData() async {
@@ -53,19 +53,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     }
   }
 
-  Future<void> _fetchPatients() async {
-    final snapshot = await _db.orderByChild('role').equalTo('patient').get();
-    final List<Map<String, String>> loadedPatients = [];
-    if (snapshot.exists) {
-      final Map<dynamic, dynamic> patientsMap =
-          snapshot.value as Map<dynamic, dynamic>;
-      patientsMap.forEach((key, value) {
-        loadedPatients.add({'uid': key, 'name': value['name'] ?? 'Patient'});
-      });
-    }
-    setState(() => _patients = loadedPatients);
-  }
-
+  // ✅ fetch appointments for this doctor
   Future<void> _fetchAppointments() async {
     setState(() => _loadingAppointments = true);
     final doctorId = _auth.currentUser!.uid;
@@ -112,6 +100,42 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     });
   }
 
+  // ✅ show only patients who have appointments with this doctor
+  Future<void> _fetchDoctorPatients() async {
+    final doctorId = _auth.currentUser!.uid;
+    final appointmentSnapshot = await FirebaseDatabase.instance
+        .ref()
+        .child('appointments')
+        .orderByChild('doctorId')
+        .equalTo(doctorId)
+        .get();
+
+    final Set<String> patientIds = {};
+
+    if (appointmentSnapshot.exists) {
+      final Map<dynamic, dynamic> apptMap =
+          appointmentSnapshot.value as Map<dynamic, dynamic>;
+      for (var entry in apptMap.entries) {
+        final appt = Map<String, dynamic>.from(entry.value);
+        if (appt['patientId'] != null) {
+          patientIds.add(appt['patientId']);
+        }
+      }
+    }
+
+    // Now fetch patient names
+    final List<Map<String, String>> loadedPatients = [];
+    for (var id in patientIds) {
+      final patientSnapshot = await _db.child(id).get();
+      if (patientSnapshot.exists) {
+        final data = Map<String, dynamic>.from(patientSnapshot.value as Map);
+        loadedPatients.add({'uid': id, 'name': data['name'] ?? 'Patient'});
+      }
+    }
+
+    setState(() => _patients = loadedPatients);
+  }
+
   void _logout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
@@ -139,7 +163,13 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
   }
 
   void _pickPatientAndUpload() {
-    if (_patients.isEmpty) return;
+    if (_patients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No patients assigned yet.")),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (_) {
@@ -177,49 +207,14 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     );
   }
 
-  void _pickPatientToViewReports() {
-    if (_patients.isEmpty) return;
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text("Select Patient to View Reports"),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _patients.length,
-              itemBuilder: (context, index) {
-                final patient = _patients[index];
-                return ListTile(
-                  title: Text(patient['name']!),
-                  onTap: () {
-                    Navigator.pop(context);
-                    final doctorId = _auth.currentUser!.uid;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PatientReportsScreen(
-                          patientId: patient['uid']!,
-                          patientName: patient['name']!,
-                          doctorId: doctorId,
-                          doctorName: _doctorName,
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ✅ NEW: Pick patient to view uploaded documents
   void _pickPatientToViewDocuments() {
-    if (_patients.isEmpty) return;
+    if (_patients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No patients assigned yet.")),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (_) {
@@ -255,6 +250,13 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
           ),
         );
       },
+    );
+  }
+
+  void _openSharedReports() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SharedReportsScreen()),
     );
   }
 
@@ -300,16 +302,16 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                     onTap: _pickPatientAndUpload,
                   ),
                   _dashboardCard(
-                    icon: Icons.folder_shared,
-                    title: "View Reports",
-                    color: Colors.purple,
-                    onTap: _pickPatientToViewReports,
-                  ),
-                  _dashboardCard(
                     icon: Icons.folder_open,
                     title: "View Documents",
                     color: Colors.orange,
                     onTap: _pickPatientToViewDocuments,
+                  ),
+                  _dashboardCard(
+                    icon: Icons.share,
+                    title: "Shared Reports",
+                    color: Colors.teal,
+                    onTap: _openSharedReports,
                   ),
                   _dashboardCard(
                     icon: Icons.chat,

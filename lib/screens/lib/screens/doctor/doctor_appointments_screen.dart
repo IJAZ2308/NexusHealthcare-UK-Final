@@ -12,7 +12,7 @@ class DoctorAppointmentListPage extends StatefulWidget {
 }
 
 class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref(
     'appointments',
   );
   final User? _currentDoctor = FirebaseAuth.instance.currentUser;
@@ -20,9 +20,14 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text("My Patients Appointments"),
+        title: const Text(
+          "My Patients' Appointments",
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         backgroundColor: Colors.deepPurple,
+        elevation: 3,
       ),
       body: StreamBuilder<DatabaseEvent>(
         stream: _dbRef.onValue,
@@ -32,87 +37,108 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
           }
 
           if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(child: Text("No appointments found."));
+            return const Center(
+              child: Text(
+                "No appointments found.",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            );
           }
 
-          final Map<dynamic, dynamic> data =
-              snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+          final data = Map<dynamic, dynamic>.from(
+            snapshot.data!.snapshot.value as Map,
+          );
+
           final List<Map<String, dynamic>> appointments = [];
 
-          // Build appointments list filtered by current doctor
+          // ✅ Filter appointments by current logged-in doctor
           data.forEach((key, value) {
             final appointment = Map<String, dynamic>.from(value);
 
             if (appointment['doctorId'] == _currentDoctor?.uid) {
-              appointments.add({
-                'patient': appointment['patientName'] ?? 'Unknown Patient',
-                'notes': appointment['notes'] ?? '',
-                'date': appointment['date'] ?? '',
-                'time': appointment['time'] ?? '',
-              });
+              String date = appointment['date'] ?? '';
+              String time = appointment['time'] ?? '';
+
+              DateTime? dateTime;
+              try {
+                dateTime = DateTime.parse(date).add(
+                  Duration(
+                    hours: int.tryParse(time.split(":")[0]) ?? 0,
+                    minutes: int.tryParse(time.split(":")[1]) ?? 0,
+                  ),
+                );
+              } catch (e) {
+                dateTime = null;
+              }
+
+              if (dateTime != null && dateTime.isAfter(DateTime.now())) {
+                appointments.add({
+                  'patientName': appointment['patientName'] ?? 'Unknown',
+                  'notes': appointment['notes'] ?? '',
+                  'dateTime': dateTime,
+                });
+              }
             }
           });
 
           if (appointments.isEmpty) {
-            return const Center(child: Text("No patients booked yet."));
+            return const Center(
+              child: Text(
+                "No upcoming appointments.",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            );
           }
 
-          // Sort appointments by date & time
-          appointments.sort((a, b) {
-            DateTime dtA = DateTime.tryParse(a['date']) ?? DateTime.now();
-            DateTime dtB = DateTime.tryParse(b['date']) ?? DateTime.now();
-
-            // Combine with time
-            if (a['time'] != '') {
-              final parts = a['time'].split(":");
-              dtA = dtA.add(
-                Duration(
-                  hours: int.tryParse(parts[0]) ?? 0,
-                  minutes: int.tryParse(parts[1]) ?? 0,
-                ),
-              );
-            }
-            if (b['time'] != '') {
-              final parts = b['time'].split(":");
-              dtB = dtB.add(
-                Duration(
-                  hours: int.tryParse(parts[0]) ?? 0,
-                  minutes: int.tryParse(parts[1]) ?? 0,
-                ),
-              );
-            }
-            return dtA.compareTo(dtB);
-          });
+          // ✅ Sort appointments by dateTime (nearest first)
+          appointments.sort(
+            (a, b) => (a['dateTime'] as DateTime).compareTo(
+              b['dateTime'] as DateTime,
+            ),
+          );
 
           return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 10),
             itemCount: appointments.length,
             itemBuilder: (context, index) {
               final appt = appointments[index];
-
-              String displayTime = 'N/A';
-              if (appt['date'] != '' && appt['time'] != '') {
-                final dateTime = DateTime.parse(appt['date']).add(
-                  Duration(
-                    hours: int.parse(appt['time'].split(":")[0]),
-                    minutes: int.parse(appt['time'].split(":")[1]),
-                  ),
-                );
-                displayTime = DateFormat(
-                  'dd MMM yyyy, hh:mm a',
-                ).format(dateTime);
-              }
+              final formattedDate = DateFormat(
+                'dd MMM yyyy, hh:mm a',
+              ).format(appt['dateTime']);
 
               return Card(
-                margin: const EdgeInsets.all(10),
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 3,
                 child: ListTile(
-                  leading: const Icon(
-                    Icons.person,
-                    color: Colors.deepPurpleAccent,
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 16,
                   ),
-                  title: Text(appt['patient']),
-                  subtitle: Text("Notes: ${appt['notes']}\nTime: $displayTime"),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  isThreeLine: true,
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.deepPurple.shade100,
+                    child: const Icon(Icons.person, color: Colors.deepPurple),
+                  ),
+                  title: Text(
+                    appt['patientName'],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      "🕒 $formattedDate\n📝 ${appt['notes']}",
+                      style: const TextStyle(height: 1.4),
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.deepPurple.shade300,
+                  ),
                 ),
               );
             },

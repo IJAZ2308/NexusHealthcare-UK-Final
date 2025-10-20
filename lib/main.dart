@@ -77,7 +77,7 @@ class AuthService {
   Future<String?> uploadLicense(File licenseFile) async {
     try {
       final Uri uploadUrl = Uri.parse(
-        "https://api.cloudinary.com/v1_1/$cloudName/auto/upload",
+        "https://api.cloudinary.com/v1_1/dij8c34qm/auto/upload",
       );
 
       final http.MultipartRequest request =
@@ -141,11 +141,7 @@ class AuthService {
       });
 
       // Save FCM token after registration
-      String? token = await FirebaseMessaging.instance.getToken();
-      if (token != null) {
-        await userRef.update({'fcmToken': token});
-        developer.log("🔑 Saved FCM token for new user: $token");
-      }
+      await saveUserToken();
 
       return true;
     } catch (e) {
@@ -177,13 +173,7 @@ class AuthService {
       }
 
       // Save FCM token after login
-      String? token = await FirebaseMessaging.instance.getToken();
-      if (token != null) {
-        await _db.child("users/${result.user!.uid}").update({
-          'fcmToken': token,
-        });
-        developer.log("🔑 Saved FCM token after login: $token");
-      }
+      await saveUserToken();
 
       return data['role'] as String?;
     } catch (e) {
