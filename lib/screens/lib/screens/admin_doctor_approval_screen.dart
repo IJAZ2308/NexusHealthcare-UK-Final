@@ -1,8 +1,7 @@
-import 'dart:convert';
+import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+// <-- Import your NotificationService
 
 class AdminDoctorApprovalScreen extends StatefulWidget {
   const AdminDoctorApprovalScreen({super.key});
@@ -54,6 +53,7 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
               'license': value['license'] ?? '',
               'role': role,
               'status': status,
+              'fcmToken': value['fcmToken'] ?? '',
             };
             if (status == 'pending') tempPending.add(doctor);
             if (status == 'approved') tempApproved.add(doctor);
@@ -71,6 +71,7 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
     });
   }
 
+  /// Update doctor status and send FCM directly
   Future<void> _updateDoctorStatus(
     String doctorId,
     String status,
@@ -98,19 +99,25 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
         ),
       ),
     );
+
+    _loadDoctors();
   }
 
+  /// 🔔 Send notification directly using NotificationService
   Future<void> _sendNotification(String doctorId, String status) async {
-    try {
-      // Placeholder: replace with your Cloud Function / FCM API
-      final url = 'https://YOUR_CLOUD_FUNCTION_URL/notifyDoctor';
-      await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'doctorId': doctorId, 'status': status}),
+    final snapshot = await _dbRef.child(doctorId).get();
+    final doctorData = Map<String, dynamic>.from(snapshot.value as Map);
+    final name =
+        "${doctorData['firstName'] ?? ''} ${doctorData['lastName'] ?? ''}"
+            .trim();
+    final token = doctorData['fcmToken'] ?? '';
+
+    if (token.isNotEmpty) {
+      await NotificationService.sendPushNotification(
+        fcmToken: token,
+        title: 'Doctor Account $status',
+        body: 'Hello $name, your account has been $status by the admin.',
       );
-    } catch (e) {
-      if (kDebugMode) print("Notification Error: $e");
     }
   }
 

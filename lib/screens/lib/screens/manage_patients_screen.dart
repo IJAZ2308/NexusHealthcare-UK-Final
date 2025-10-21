@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 class ManagePatientsScreen extends StatefulWidget {
   const ManagePatientsScreen({super.key});
@@ -11,35 +15,101 @@ class ManagePatientsScreen extends StatefulWidget {
 class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
   final DatabaseReference _patientsRef = FirebaseDatabase.instance.ref().child(
     'patients',
-  ); // Your patients node
+  );
   final DatabaseReference _appointmentsRef = FirebaseDatabase.instance
       .ref()
-      .child('appointments'); // Your appointments node
+      .child('appointments');
 
-  void _updateVerification(String patientId, bool isVerified) {
-    _patientsRef.child(patientId).update({'verified': isVerified}).then((_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Patient ${isVerified ? 'verified' : 'rejected'} successfully!',
-            ),
-          ),
-        );
+  // ---------------- NOTIFICATION SERVICE ----------------
+  Future<void> _sendNotification(
+    String patientId,
+    String title,
+    String body,
+  ) async {
+    try {
+      final tokenSnap = await _patientsRef
+          .child(patientId)
+          .child('fcmToken')
+          .get();
+      if (!tokenSnap.exists) {
+        if (kDebugMode) print("❌ No FCM token found for $patientId");
+        return;
       }
-    });
+
+      final fcmToken = tokenSnap.value.toString();
+
+      // ---------------- Using dart:convert and http ----------------
+      final payload = json.encode({
+        'to': fcmToken,
+        'notification': {'title': title, 'body': body},
+        'data': {
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+          'screen': 'patient_dashboard',
+        },
+      });
+
+      // Dummy POST request to FCM endpoint (replace YOUR_SERVER_KEY with real key)
+      await http.post(
+        Uri.parse('https://fcm.googleapis.com/fcm/send'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'key=YOUR_SERVER_KEY',
+        },
+        body: payload,
+      );
+
+      // ---------------- Use NotificationService directly ----------------
+      await NotificationService.sendPushNotification(
+        fcmToken: fcmToken,
+        title: title,
+        body: body,
+        data: {
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+          'screen': 'patient_dashboard',
+        },
+      );
+
+      if (kDebugMode) print("✅ Notification sent to $patientId");
+    } catch (e) {
+      if (kDebugMode) print("Notification Error: $e");
+    }
   }
 
-  void _deletePatient(String patientId) {
-    _patientsRef.child(patientId).remove().then((_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Patient deleted successfully!')),
-        );
-      }
-    });
+  // ---------------- VERIFY / DELETE PATIENT ----------------
+  void _updateVerification(String patientId, bool isVerified) async {
+    await _patientsRef.child(patientId).update({'verified': isVerified});
+
+    String statusText = isVerified ? 'verified' : 'rejected';
+    await _sendNotification(
+      patientId,
+      "Account $statusText",
+      "Your patient account has been $statusText by the admin.",
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Patient $statusText successfully!')),
+      );
+    }
   }
 
+  void _deletePatient(String patientId) async {
+    await _patientsRef.child(patientId).remove();
+
+    await _sendNotification(
+      patientId,
+      "Account Deleted",
+      "Your patient account has been deleted by the admin.",
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Patient deleted successfully!')),
+      );
+    }
+  }
+
+  // ---------------- FETCH PATIENTS ----------------
   Future<List<Map<String, dynamic>>> _fetchPatients() async {
     final patientsSnapshot = await _patientsRef.get();
     final appointmentsSnapshot = await _appointmentsRef.get();
@@ -60,7 +130,6 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
       final data = Map<String, dynamic>.from(entry.value as Map);
       data['patientId'] = entry.key;
 
-      // If the patient's name is "Unknown", try to find from appointments
       if (data['name'] == "Unknown") {
         for (var appt in appointmentsMap.values) {
           final apptData = Map<String, dynamic>.from(appt);
@@ -78,6 +147,7 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
     return patientsList;
   }
 
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(

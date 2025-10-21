@@ -1,7 +1,9 @@
+import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
+// <-- Import NotificationService
 
 class DoctorAppointmentListPage extends StatefulWidget {
   const DoctorAppointmentListPage({super.key});
@@ -16,6 +18,49 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
     'appointments',
   );
   final User? _currentDoctor = FirebaseAuth.instance.currentUser;
+  late Stream<DatabaseEvent> _appointmentStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _appointmentStream = _dbRef.onChildAdded;
+
+    // Listen for new appointments and send notifications
+    _appointmentStream.listen((event) {
+      final appointment = Map<String, dynamic>.from(
+        event.snapshot.value as Map,
+      );
+      if (appointment['doctorId'] == _currentDoctor?.uid) {
+        _sendAppointmentNotification(appointment);
+      }
+    });
+  }
+
+  /// 🔔 Send push notification for new appointment
+  Future<void> _sendAppointmentNotification(
+    Map<String, dynamic> appointment,
+  ) async {
+    final patientName = appointment['patientName'] ?? 'A patient';
+    final date = appointment['date'] ?? '';
+    final time = appointment['time'] ?? '';
+
+    await NotificationService.sendPushNotification(
+      fcmToken: await _getDoctorFcmToken(),
+      title: "New Appointment Scheduled",
+      body: "$patientName has booked an appointment on $date at $time.",
+    );
+  }
+
+  /// Get FCM token of logged-in doctor
+  Future<String> _getDoctorFcmToken() async {
+    final snapshot = await FirebaseDatabase.instance
+        .ref('users/${_currentDoctor?.uid}/fcmToken')
+        .get();
+    if (snapshot.exists && snapshot.value != null) {
+      return snapshot.value.toString();
+    }
+    return '';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +75,7 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
         elevation: 3,
       ),
       body: StreamBuilder<DatabaseEvent>(
-        stream: _dbRef.onValue,
+        stream: FirebaseDatabase.instance.ref('appointments').onValue,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -48,13 +93,10 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
           final data = Map<dynamic, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
-
           final List<Map<String, dynamic>> appointments = [];
 
-          // ✅ Filter appointments by current logged-in doctor
           data.forEach((key, value) {
             final appointment = Map<String, dynamic>.from(value);
-
             if (appointment['doctorId'] == _currentDoctor?.uid) {
               String date = appointment['date'] ?? '';
               String time = appointment['time'] ?? '';
@@ -90,10 +132,9 @@ class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
             );
           }
 
-          // ✅ Sort appointments by dateTime (nearest first)
           appointments.sort(
             (a, b) => (a['dateTime'] as DateTime).compareTo(
-              b['dateTime'] as DateTime,
+              a['dateTime'] as DateTime,
             ),
           );
 

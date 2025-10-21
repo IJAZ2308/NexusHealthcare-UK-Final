@@ -159,7 +159,8 @@ class BedListScreenState extends State<BedListScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BookAppointmentScreen(doctor: doctor),
+        builder: (context) =>
+            BookAppointmentScreen(doctor: doctor, doctors: []),
       ),
     );
   }

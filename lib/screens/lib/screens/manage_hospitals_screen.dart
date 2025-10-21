@@ -1,3 +1,5 @@
+import 'dart:convert'; // for JSON encoding
+import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:geocoding/geocoding.dart';
@@ -14,6 +16,9 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'hospitals',
   );
+  final DatabaseReference _usersRef = FirebaseDatabase.instance.ref().child(
+    'users',
+  );
 
   @override
   void initState() {
@@ -21,7 +26,6 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
     _migrateHospitals();
   }
 
-  /// Migration: ensures all hospitals have default fields
   Future<void> _migrateHospitals() async {
     final snapshot = await _dbRef.get();
     if (!snapshot.exists) return;
@@ -30,18 +34,13 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
     for (var entry in data.entries) {
       final hospitalId = entry.key;
       final hospitalData = Map<String, dynamic>.from(entry.value);
-
       final Map<String, dynamic> updates = {};
 
       if (!hospitalData.containsKey('availableBeds')) {
         updates['availableBeds'] = 0;
       }
-      if (!hospitalData.containsKey('phone')) {
-        updates['phone'] = "N/A";
-      }
-      if (!hospitalData.containsKey('website')) {
-        updates['website'] = "";
-      }
+      if (!hospitalData.containsKey('phone')) updates['phone'] = "N/A";
+      if (!hospitalData.containsKey('website')) updates['website'] = "";
 
       if (updates.isNotEmpty) {
         await _dbRef.child(hospitalId).update(updates);
@@ -50,7 +49,20 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
   }
 
   Future<void> _deleteHospital(String hospitalId) async {
-    await _dbRef.child(hospitalId).remove();
+    final hospitalSnapshot = await _dbRef.child(hospitalId).get();
+    if (hospitalSnapshot.exists) {
+      final hospitalData = Map<String, dynamic>.from(
+        hospitalSnapshot.value as Map,
+      );
+      final name = hospitalData['name'] ?? 'a hospital';
+      await _dbRef.child(hospitalId).remove();
+
+      // Notify LSO users
+      await _notifyLSOUsers(
+        title: 'Hospital Removed',
+        body: 'The hospital "$name" has been removed from the system.',
+      );
+    }
   }
 
   Future<void> _openUrl(String url) async {
@@ -74,77 +86,105 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text("Add Hospital"),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: "Hospital Name"),
-                ),
-                TextField(
-                  controller: addressController,
-                  decoration: const InputDecoration(labelText: "Address"),
-                ),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(labelText: "Phone"),
-                ),
-                TextField(
-                  controller: websiteController,
-                  decoration: const InputDecoration(labelText: "Website"),
-                ),
-                TextField(
-                  controller: bedsController,
-                  decoration: const InputDecoration(
-                    labelText: "Available Beds",
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            ),
+      builder: (ctx) => AlertDialog(
+        title: const Text("Add Hospital"),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: "Hospital Name"),
+              ),
+              TextField(
+                controller: addressController,
+                decoration: const InputDecoration(labelText: "Address"),
+              ),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(labelText: "Phone"),
+              ),
+              TextField(
+                controller: websiteController,
+                decoration: const InputDecoration(labelText: "Website"),
+              ),
+              TextField(
+                controller: bedsController,
+                decoration: const InputDecoration(labelText: "Available Beds"),
+                keyboardType: TextInputType.number,
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final address = addressController.text.trim();
-                final phone = phoneController.text.trim();
-                final website = websiteController.text.trim();
-                final beds = int.tryParse(bedsController.text.trim()) ?? 0;
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              final address = addressController.text.trim();
+              final phone = phoneController.text.trim();
+              final website = websiteController.text.trim();
+              final beds = int.tryParse(bedsController.text.trim()) ?? 0;
+              if (name.isEmpty || address.isEmpty) return;
 
-                if (name.isEmpty || address.isEmpty) return;
+              final latlng = await _getLatLng(address);
 
-                // Fetch Lat/Lon automatically
-                final latlng = await _getLatLng(address);
+              final hospitalData = {
+                "name": name,
+                "address": address,
+                "phone": phone.isNotEmpty ? phone : "N/A",
+                "website": website,
+                "availableBeds": beds,
+                "lat": latlng["lat"],
+                "lng": latlng["lng"],
+              };
 
-                final hospitalData = {
-                  "name": name,
-                  "address": address,
-                  "phone": phone.isNotEmpty ? phone : "N/A",
-                  "website": website,
-                  "availableBeds": beds,
-                  "lat": latlng["lat"],
-                  "lng": latlng["lng"],
-                };
+              await _dbRef.push().set(hospitalData);
 
-                await _dbRef.push().set(hospitalData);
+              // Notify LSO users using JSON payload
+              await _notifyLSOUsers(
+                title: 'New Hospital Added',
+                body: json.encode({
+                  'message':
+                      'The hospital "$name" has been added successfully.',
+                }),
+              );
 
-                // ignore: use_build_context_synchronously
-                Navigator.of(ctx).pop();
-              },
-              child: const Text("Save"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text("Cancel"),
-            ),
-          ],
-        );
-      },
+              // ignore: use_build_context_synchronously
+              Navigator.of(ctx).pop();
+            },
+            child: const Text("Save"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("Cancel"),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _notifyLSOUsers({
+    required String title,
+    required String body,
+  }) async {
+    final snapshot = await _usersRef.get();
+    if (!snapshot.exists) return;
+
+    final data = snapshot.value as Map<dynamic, dynamic>;
+    for (var userEntry in data.entries) {
+      final user = userEntry.value as Map<dynamic, dynamic>;
+      if (user['role'] == 'LSO' && user['fcmToken'] != null) {
+        final token = user['fcmToken'].toString();
+        // Using NotificationService and JSON encoding
+        await NotificationService.sendPushNotification(
+          fcmToken: token,
+          title: title,
+          body: body,
+          data: {
+            'payload': json.encode({'title': title, 'body': body}),
+          },
+        );
+      }
+    }
   }
 
   @override
