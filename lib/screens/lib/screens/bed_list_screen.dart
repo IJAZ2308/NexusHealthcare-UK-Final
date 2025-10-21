@@ -142,7 +142,7 @@ class BedListScreenState extends State<BedListScreen> {
     } else if (beds != null) {
       return Text("Total Beds: $beds", style: const TextStyle(fontSize: 14));
     } else {
-      return const Text("Beds: 0", style: TextStyle(fontSize: 14));
+      return const Text("Beds: 20", style: TextStyle(fontSize: 14));
     }
   }
 

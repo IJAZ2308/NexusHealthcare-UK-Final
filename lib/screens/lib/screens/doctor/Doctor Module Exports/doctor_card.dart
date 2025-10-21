@@ -6,7 +6,12 @@ class DoctorCard extends StatefulWidget {
   final Doctor doctor;
   final VoidCallback? onTap;
 
-  const DoctorCard({super.key, required this.doctor, this.onTap});
+  const DoctorCard({
+    super.key,
+    required this.doctor,
+    this.onTap,
+    required void Function() onBookPressed,
+  });
 
   @override
   State<DoctorCard> createState() => _DoctorCardState();
