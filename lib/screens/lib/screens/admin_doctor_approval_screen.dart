@@ -14,7 +14,7 @@ class AdminDoctorApprovalScreen extends StatefulWidget {
 class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
     with SingleTickerProviderStateMixin {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
-    'users',
+    'doctors',
   );
   late TabController _tabController;
   bool _isLoading = true;

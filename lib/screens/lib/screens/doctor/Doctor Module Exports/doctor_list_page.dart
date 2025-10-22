@@ -19,7 +19,7 @@ class DoctorListPage extends StatefulWidget {
 
 class _DoctorListPageState extends State<DoctorListPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
-    "users",
+    "doctors",
   );
   final DatabaseReference _appointmentsRef = FirebaseDatabase.instance
       .ref()

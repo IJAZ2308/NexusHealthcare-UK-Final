@@ -1,4 +1,3 @@
-import 'package:dr_shahin_uk/main.dart'; // for saveUserToken & setupFCMListeners
 import 'package:dr_shahin_uk/screens/auth/register_selection.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/admin_dashboard.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor_dashboard_lab.dart';
@@ -8,6 +7,7 @@ import 'package:dr_shahin_uk/screens/shared/verify_pending.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:dr_shahin_uk/services/notification_service.dart'; // new service
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -55,10 +55,23 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final data = Map<String, dynamic>.from(snapshot.value as Map);
-      final String role = data['role'] ?? '';
-      final bool isVerified = (data['isVerified'] is bool)
+      String role = data['role'] ?? '';
+      bool isVerified = data['isVerified'] is bool
           ? data['isVerified']
           : (data['isVerified'].toString().toLowerCase() == 'true');
+
+      // For doctors, check in doctors node for verification
+      if ((role == 'labDoctor' || role == 'consultingDoctor')) {
+        final doctorSnapshot = await _db.child("doctors").child(uid).get();
+        if (doctorSnapshot.exists) {
+          final doctorData = Map<String, dynamic>.from(
+            doctorSnapshot.value as Map,
+          );
+          isVerified = doctorData['isVerified'] ?? false;
+        } else {
+          isVerified = false;
+        }
+      }
 
       if (!mounted) return;
 
@@ -101,9 +114,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// -------------------- SAVE TOKEN & FCM --------------------
   Future<void> _onLoginSuccess(BuildContext context) async {
-    await saveUserToken(); // save FCM token
+    await NotificationService.saveUserToken(); // save FCM token
     // ignore: use_build_context_synchronously
-    setupFCMListeners(context); // setup foreground notifications
+    NotificationService.setupFCMListeners(context); // foreground notifications
   }
 
   /// -------------------- RESET PASSWORD --------------------
@@ -230,11 +243,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         : Icons.visibility,
                                     color: Colors.grey.shade400,
                                   ),
-                                  onPressed: () {
-                                    setState(
-                                      () => _obscureText = !_obscureText,
-                                    );
-                                  },
+                                  onPressed: () => setState(
+                                    () => _obscureText = !_obscureText,
+                                  ),
                                 ),
                               ),
                               obscureText: _obscureText,
@@ -295,14 +306,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           // Register Navigation
                           TextButton(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const RegisterSelectionScreen(),
-                                ),
-                              );
-                            },
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const RegisterSelectionScreen(),
+                              ),
+                            ),
                             child: const Text(
                               'Don’t have an account? Register',
                               style: TextStyle(

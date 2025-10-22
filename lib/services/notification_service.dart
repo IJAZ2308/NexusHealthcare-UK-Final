@@ -8,6 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -19,41 +20,58 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
-  // 🚀 Your FCM server key (keep private, from Firebase console → Project Settings → Cloud Messaging)
+  // 🚀 Your FCM server key (keep private)
   static const String _serverKey = 'YOUR_FCM_SERVER_KEY_HERE';
 
-  /// Initialize FCM & Local Notifications
+  /// -------------------- INIT --------------------
   Future<void> init() async {
     await Firebase.initializeApp();
-
-    // Request permission (for iOS)
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
-    // Handle background messages
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // Initialize local notifications
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-
     const InitializationSettings initializationSettings =
         InitializationSettings(android: initializationSettingsAndroid);
 
     await _flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-    // Listen for foreground messages
+    // Save token and listen to role-based events
+    await _saveDeviceToken();
+    _listenToRoleEvents();
+
+    // Foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       _showLocalNotification(message);
     });
-
-    // Save the current device token
-    await _saveDeviceToken();
-
-    // Start listening to role-based database triggers
-    _listenToRoleEvents();
   }
 
-  /// Handle background FCM
+  /// -------------------- STATIC METHODS FOR LOGIN --------------------
+  static Future<void> saveUserToken() async {
+    await NotificationService()._saveDeviceToken();
+  }
+
+  static void setupFCMListeners(BuildContext context) {
+    NotificationService()._listenToRoleEvents();
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      NotificationService()._showLocalNotification(message);
+    });
+  }
+
+  /// -------------------- STATIC METHODS FOR DASHBOARDS --------------------
+  static Future<void> initialize() async {
+    await NotificationService().init();
+  }
+
+  static void setupFCM() {
+    NotificationService()._listenToRoleEvents();
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      NotificationService()._showLocalNotification(message);
+    });
+  }
+
+  /// -------------------- BACKGROUND HANDLER --------------------
   static Future<void> _firebaseMessagingBackgroundHandler(
     RemoteMessage message,
   ) async {
@@ -61,7 +79,7 @@ class NotificationService {
     print('📩 Background message received: ${message.messageId}');
   }
 
-  /// Show local notification
+  /// -------------------- LOCAL NOTIFICATIONS --------------------
   Future<void> _showLocalNotification(RemoteMessage message) async {
     if (message.notification != null) {
       final notification = message.notification!;
@@ -82,7 +100,7 @@ class NotificationService {
     }
   }
 
-  /// Save current device FCM token in RTDB under `users/{uid}/fcmToken`
+  /// -------------------- SAVE DEVICE TOKEN --------------------
   Future<void> _saveDeviceToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -94,19 +112,18 @@ class NotificationService {
     }
   }
 
-  /// Subscribe to FCM topic
+  /// -------------------- SUBSCRIBE/UNSUBSCRIBE --------------------
   Future<void> subscribeToTopic(String topic) async {
     await _messaging.subscribeToTopic(topic);
     print('Subscribed to topic: $topic');
   }
 
-  /// Unsubscribe from FCM topic
   Future<void> unsubscribeFromTopic(String topic) async {
     await _messaging.unsubscribeFromTopic(topic);
     print('Unsubscribed from topic: $topic');
   }
 
-  /// 📤 Send FCM Push Notification directly (used in ManagePatientsScreen)
+  /// -------------------- SEND PUSH NOTIFICATION --------------------
   static Future<void> sendPushNotification({
     required String fcmToken,
     required String title,
@@ -140,7 +157,7 @@ class NotificationService {
     }
   }
 
-  /// 👥 Listen to RTDB events for doctors/patients
+  /// -------------------- ROLE-BASED LISTENERS --------------------
   void _listenToRoleEvents() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -150,7 +167,6 @@ class NotificationService {
       if (role == null) return;
 
       if (role == 'doctor') {
-        // Doctor: new appointments
         _dbRef
             .child('appointments')
             .orderByChild('doctorId')
@@ -164,7 +180,6 @@ class NotificationService {
               );
             });
       } else if (role == 'patient') {
-        // Patient: new reports
         _dbRef
             .child('reports')
             .orderByChild('patientId')
@@ -181,7 +196,6 @@ class NotificationService {
     });
   }
 
-  /// Helper: show local notification for role-based events
   void _showLocalNotificationForRole({
     required String title,
     required String body,
@@ -201,7 +215,4 @@ class NotificationService {
       ),
     );
   }
-
-  static void initialize() {}
-  static void setupFCM() {}
 }

@@ -120,27 +120,49 @@ class AuthService {
     required String specialization,
     required bool isVerified,
     required String doctorType,
-    required String s,
+    required String s, // labDoctor / consultingDoctor
   }) async {
     try {
+      // 1️⃣ Create user in Firebase Auth
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      final userRef = _db.child("users").child(result.user!.uid);
+      final uid = result.user!.uid;
 
-      await userRef.set({
-        'uid': result.user!.uid,
-        'email': email,
-        'name': name,
-        'role': role,
-        'isVerified': role == 'doctor' ? false : true,
-        'licenseUrl': licenseUrl ?? '',
-        'specialization': role == 'doctor' ? specialization : '',
-      });
+      if (role == 'doctor') {
+        // 2️⃣ Save doctor info under "doctors" node
+        final userRef = _db.child("doctors").child(uid);
 
-      // Save FCM token after registration
+        await userRef.set({
+          'uid': uid,
+          'firstName': name, // optionally split firstName / lastName
+          'email': email,
+          'role': role,
+          'doctorRole': s, // labDoctor / consultingDoctor
+          'licenseUrl': licenseUrl ?? '',
+          'specialization': specialization,
+          'status': doctorType, // pending
+          'isVerified': isVerified,
+          'fcmToken': '',
+          'createdAt': DateTime.now().toIso8601String(),
+        });
+      } else {
+        // 2️⃣ Save normal users under "users" node
+        final userRef = _db.child("users").child(uid);
+
+        await userRef.set({
+          'uid': uid,
+          'name': name,
+          'email': email,
+          'role': role,
+          'isVerified': true,
+          'createdAt': DateTime.now().toIso8601String(),
+        });
+      }
+
+      // 3️⃣ Save FCM token after registration
       await saveUserToken();
 
       return true;
@@ -157,20 +179,34 @@ class AuthService {
         password: password,
       );
 
-      final DataSnapshot snapshot = await _db
-          .child("users")
-          .child(result.user!.uid)
-          .get();
+      DataSnapshot snapshot;
+
+      // First check in "doctors" node
+      snapshot = await _db.child("doctors").child(result.user!.uid).get();
+
+      if (snapshot.exists) {
+        final Map<String, dynamic> data = Map<String, dynamic>.from(
+          snapshot.value as Map,
+        );
+
+        if (data['isVerified'] == false) {
+          return null; // Doctor must be verified
+        }
+
+        // Save FCM token after login
+        await saveUserToken();
+
+        return data['role'] as String?;
+      }
+
+      // Otherwise check in "users" node
+      snapshot = await _db.child("users").child(result.user!.uid).get();
 
       if (!snapshot.exists) return null;
 
       final Map<String, dynamic> data = Map<String, dynamic>.from(
         snapshot.value as Map,
       );
-
-      if (data['role'] == 'doctor' && data['isVerified'] == false) {
-        return null; // Doctor must be verified
-      }
 
       // Save FCM token after login
       await saveUserToken();
@@ -181,91 +217,96 @@ class AuthService {
       return null;
     }
   }
-}
 
-/// ------------------------ FCM BACKGROUND HANDLER ------------------------
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  developer.log("🔔 Handling background message: ${message.messageId}");
-
-  _showLocalNotification(message);
-}
-
-/// ------------------------ LOCAL NOTIFICATION HELPER ------------------------
-Future<void> _showLocalNotification(RemoteMessage message) async {
-  RemoteNotification? notification = message.notification;
-  if (notification != null && Platform.isAndroid) {
-    final AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-          channel.id,
-          channel.name,
-          channelDescription: channel.description,
-          importance: Importance.high,
-          priority: Priority.high,
-        );
-
-    final NotificationDetails platformDetails = NotificationDetails(
-      android: androidDetails,
+  /// ------------------------ FCM BACKGROUND HANDLER ------------------------
+  Future<void> _firebaseMessagingBackgroundHandler(
+    RemoteMessage message,
+  ) async {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
     );
+    developer.log("🔔 Handling background message: ${message.messageId}");
 
-    await flutterLocalNotificationsPlugin.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      platformDetails,
-    );
+    _showLocalNotification(message);
   }
-}
 
-/// ------------------------ SAVE FCM TOKEN ------------------------
-Future<void> saveUserToken() async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
+  /// ------------------------ LOCAL NOTIFICATION HELPER ------------------------
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    RemoteNotification? notification = message.notification;
+    if (notification != null && Platform.isAndroid) {
+      final AndroidNotificationDetails androidDetails =
+          AndroidNotificationDetails(
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
+            importance: Importance.high,
+            priority: Priority.high,
+          );
 
-  String? token = await FirebaseMessaging.instance.getToken();
-  if (token != null) {
-    await FirebaseDatabase.instance.ref("users/${user.uid}").update({
-      "fcmToken": token,
+      final NotificationDetails platformDetails = NotificationDetails(
+        android: androidDetails,
+      );
+
+      await flutterLocalNotificationsPlugin.show(
+        notification.hashCode,
+        notification.title,
+        notification.body,
+        platformDetails,
+      );
+    }
+  }
+
+  /// ------------------------ SAVE FCM TOKEN ------------------------
+  Future<void> saveUserToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    String? token = await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      await FirebaseDatabase.instance.ref("users/${user.uid}").update({
+        "fcmToken": token,
+      });
+      developer.log("🔑 Saved FCM Token: $token");
+    }
+  }
+
+  /// ------------------------ FOREGROUND FCM LISTENER ------------------------
+  void setupFCMListeners(BuildContext context) {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      _showLocalNotification(message);
     });
-    developer.log("🔑 Saved FCM Token: $token");
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      _showLocalNotification(message);
+    });
   }
-}
 
-/// ------------------------ FOREGROUND FCM LISTENER ------------------------
-void setupFCMListeners(BuildContext context) {
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    _showLocalNotification(message);
-  });
+  /// ------------------------ MAIN FUNCTION ------------------------
+  void main() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    _showLocalNotification(message);
-  });
-}
+    // Initialize local notifications
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
-/// ------------------------ MAIN FUNCTION ------------------------
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    final InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
 
-  // Initialize local notifications
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-  final InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
+    // Create notification channel
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
 
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    // FCM background handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // Create notification channel
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >()
-      ?.createNotificationChannel(channel);
-
-  // FCM background handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  runApp(const MyApp());
+    runApp(const MyApp());
+  }
 }
