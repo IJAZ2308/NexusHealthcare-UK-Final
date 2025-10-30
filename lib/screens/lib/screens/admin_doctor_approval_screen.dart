@@ -1,7 +1,8 @@
 import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-// <-- Import your NotificationService
+import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 
 class AdminDoctorApprovalScreen extends StatefulWidget {
   const AdminDoctorApprovalScreen({super.key});
@@ -43,14 +44,18 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
       data.forEach((key, value) {
         if (value is Map) {
           final role = value['role'] ?? '';
-          final status = value['status'] ?? '';
+          final status = value['status'] ?? 'pending'; // default pending
           if (role == 'labDoctor' || role == 'consultingDoctor') {
             final doctor = {
               'id': key,
-              'name': "${value['firstName'] ?? ''} ${value['lastName'] ?? ''}"
-                  .trim(),
+              'firstName': value['firstName'] ?? '',
+              'lastName': value['lastName'] ?? '',
               'email': value['email'] ?? '',
+              'phoneNumber': value['phoneNumber'] ?? '',
               'license': value['license'] ?? '',
+              'resumeUrl': value['resumeUrl'] ?? '',
+              'address': value['address'] ?? '',
+              'createdAt': value['createdAt'],
               'role': role,
               'status': status,
               'fcmToken': value['fcmToken'] ?? '',
@@ -71,47 +76,78 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
     });
   }
 
-  /// Update doctor status and send FCM directly
+  /// 🔹 Update status + send notification
   Future<void> _updateDoctorStatus(
     String doctorId,
     String status,
-    bool isVerified,
+    bool verified,
   ) async {
     await _dbRef.child(doctorId).update({
       'status': status,
-      'isVerified': isVerified,
+      'isVerified': verified,
     });
-
     await _sendNotification(doctorId, status);
-
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Doctor marked as $status'),
-        action: SnackBarAction(
-          label: 'UNDO',
-          onPressed: () {
-            _dbRef.child(doctorId).update({
-              'status': 'pending',
-              'isVerified': false,
-            });
-          },
-        ),
-      ),
-    );
-
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Doctor marked as $status')));
     _loadDoctors();
   }
 
-  /// 🔔 Send notification directly using NotificationService
+  /// 🔹 Delete doctor record
+  Future<void> _deleteDoctor(String doctorId) async {
+    final confirm = await _showDeleteConfirmDialog();
+    if (confirm) {
+      await _dbRef.child(doctorId).remove();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Doctor deleted successfully')),
+      );
+      _loadDoctors();
+    }
+  }
+
+  Future<bool> _showDeleteConfirmDialog() async {
+    final controller = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Confirm Delete"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Type CONFIRM to delete this doctor"),
+              TextField(controller: controller),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: const Text("Cancel"),
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text("Delete"),
+              onPressed: () {
+                if (controller.text.trim().toUpperCase() == "CONFIRM") {
+                  Navigator.pop(context, true);
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  /// 🔔 Send push notification
   Future<void> _sendNotification(String doctorId, String status) async {
     final snapshot = await _dbRef.child(doctorId).get();
-    final doctorData = Map<String, dynamic>.from(snapshot.value as Map);
-    final name =
-        "${doctorData['firstName'] ?? ''} ${doctorData['lastName'] ?? ''}"
-            .trim();
-    final token = doctorData['fcmToken'] ?? '';
-
+    final data = Map<String, dynamic>.from(snapshot.value as Map);
+    final name = "${data['firstName'] ?? ''} ${data['lastName'] ?? ''}".trim();
+    final token = data['fcmToken'] ?? '';
     if (token.isNotEmpty) {
       await NotificationService.sendPushNotification(
         fcmToken: token,
@@ -121,85 +157,44 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
     }
   }
 
-  void _showActionDialog(Map<String, dynamic> doctor) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Manage ${doctor['name']}"),
-          content: const Text("Choose an action for this doctor:"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _updateDoctorStatus(doctor['id'], 'approved', true);
-              },
-              child: const Text(
-                "Approve",
-                style: TextStyle(color: Colors.green),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _updateDoctorStatus(doctor['id'], 'rejected', false);
-              },
-              child: const Text("Reject", style: TextStyle(color: Colors.red)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
-            ),
-          ],
-        );
-      },
-    );
+  void _openDoctorDetail(Map<String, dynamic> doctor) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DoctorDetailRealtimePage(doctorData: doctor),
+      ),
+    ).then((_) => _loadDoctors());
   }
 
   Widget _buildDoctorCard(Map<String, dynamic> doctor) {
     final status = doctor['status'] ?? 'pending';
-    final badgeColor = status == 'approved'
+    final color = status == 'approved'
         ? Colors.green
         : status == 'rejected'
         ? Colors.red
         : Colors.orange;
-    final badgeText = status[0].toUpperCase() + status.substring(1);
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      elevation: 3,
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: badgeColor,
+          backgroundColor: color,
           child: const Icon(Icons.person, color: Colors.white),
         ),
         title: Text(
-          doctor['name'].isEmpty ? 'Unknown Doctor' : doctor['name'],
+          "${doctor['firstName']} ${doctor['lastName']}".trim().isEmpty
+              ? "Unnamed Doctor"
+              : "${doctor['firstName']} ${doctor['lastName']}".trim(),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Email: ${doctor['email']}"),
-            Text("Role: ${doctor['role']}"),
-            Text("License: ${doctor['license']}"),
-          ],
+        subtitle: Text("Email: ${doctor['email']}"),
+        trailing: Chip(
+          label: Text(status.toUpperCase(), style: TextStyle(color: color)),
+          // ignore: deprecated_member_use
+          backgroundColor: color.withOpacity(0.1),
+          side: BorderSide(color: color),
         ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            // ignore: deprecated_member_use
-            color: badgeColor.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: badgeColor),
-          ),
-          child: Text(
-            badgeText,
-            style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold),
-          ),
-        ),
-        onTap: () => _showActionDialog(doctor),
+        onTap: () => _openDoctorDetail(doctor),
       ),
     );
   }
@@ -207,12 +202,11 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
   Widget _buildDoctorList(List<Map<String, dynamic>> list) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (list.isEmpty) return const Center(child: Text("No doctors found."));
-
     return RefreshIndicator(
       onRefresh: _loadDoctors,
       child: ListView.builder(
         itemCount: list.length,
-        itemBuilder: (context, index) => _buildDoctorCard(list[index]),
+        itemBuilder: (context, i) => _buildDoctorCard(list[i]),
       ),
     );
   }
@@ -238,6 +232,142 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
           _buildDoctorList(approvedDoctors),
           _buildDoctorList(rejectedDoctors),
         ],
+      ),
+    );
+  }
+}
+
+/// ✅ Doctor Detail Page (Realtime DB)
+class DoctorDetailRealtimePage extends StatelessWidget {
+  final Map<String, dynamic> doctorData;
+
+  const DoctorDetailRealtimePage({super.key, required this.doctorData});
+
+  @override
+  Widget build(BuildContext context) {
+    final name =
+        "${doctorData['firstName'] ?? ''} ${doctorData['lastName'] ?? ''}"
+            .trim();
+    final createdAt = doctorData['createdAt'];
+    String formattedDate = "Not Available";
+    if (createdAt != null && createdAt.toString().isNotEmpty) {
+      try {
+        final date = DateTime.fromMillisecondsSinceEpoch(
+          int.parse(createdAt.toString()),
+        );
+        formattedDate = DateFormat('dd MMM yyyy, hh:mm a').format(date);
+      } catch (_) {}
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(name.isEmpty ? "Doctor Details" : name)),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: ListView(
+          children: [
+            _detail("Name", name),
+            _detail("Email", doctorData['email'] ?? ""),
+            _detail("Phone", doctorData['phoneNumber'] ?? ""),
+            _detail("License", doctorData['license'] ?? ""),
+            _detail("Role", doctorData['role'] ?? ""),
+            _detail("Address", doctorData['address'] ?? ""),
+            _detail("Account Created", formattedDate),
+            _resumeSection(context),
+            const SizedBox(height: 20),
+            _actionButtons(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _resumeSection(BuildContext context) {
+    final resumeUrl = doctorData['resumeUrl'] ?? '';
+    if (resumeUrl.isEmpty) {
+      return const Text(
+        "Resume: No Resume Uploaded",
+        style: TextStyle(fontSize: 16),
+      );
+    }
+    return Row(
+      children: [
+        const Text("Resume: ", style: TextStyle(fontWeight: FontWeight.bold)),
+        TextButton(
+          onPressed: () async {
+            final uri = Uri.parse(resumeUrl);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
+          child: const Text("View Resume"),
+        ),
+      ],
+    );
+  }
+
+  Widget _actionButtons(BuildContext context) {
+    return Column(
+      children: [
+        ElevatedButton.icon(
+          icon: const Icon(Icons.check),
+          label: const Text("Approve Doctor"),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          onPressed: () {
+            Navigator.pop(context);
+            final parentState = context
+                .findAncestorStateOfType<_AdminDoctorApprovalScreenState>();
+            parentState?._updateDoctorStatus(
+              doctorData['id'],
+              'approved',
+              true,
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.close),
+          label: const Text("Reject Doctor"),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+          onPressed: () {
+            Navigator.pop(context);
+            final parentState = context
+                .findAncestorStateOfType<_AdminDoctorApprovalScreenState>();
+            parentState?._updateDoctorStatus(
+              doctorData['id'],
+              'rejected',
+              false,
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.delete),
+          label: const Text("Delete Doctor"),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () {
+            Navigator.pop(context);
+            final parentState = context
+                .findAncestorStateOfType<_AdminDoctorApprovalScreenState>();
+            parentState?._deleteDoctor(doctorData['id']);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _detail(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: "$label: ",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            TextSpan(text: value, style: const TextStyle(fontSize: 16)),
+          ],
+        ),
       ),
     );
   }

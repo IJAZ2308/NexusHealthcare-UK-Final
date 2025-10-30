@@ -1,4 +1,4 @@
-import 'package:dr_shahin_uk/screens/lib/screens/patlabappointmentpage.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_listpage.dart';
 import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
 import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +16,7 @@ class LabDoctorDashboard extends StatefulWidget {
 
 class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final DatabaseReference _db = FirebaseDatabase.instance.ref().child('users');
+  final DatabaseReference _db = FirebaseDatabase.instance.ref();
 
   String _doctorName = "Lab Doctor";
   List<Map<String, String>> _patients = [];
@@ -28,32 +28,36 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   @override
   void initState() {
     super.initState();
-    _fetchDoctorData();
-    _fetchAppointments().then((_) => _fetchPatients());
+    _initializeDashboard();
+  }
 
-    // Initialize notifications
-    NotificationService.initialize(); // 👈 local notifications
-    NotificationService.setupFCM(); // 👈 FCM token & listeners
+  Future<void> _initializeDashboard() async {
+    await _fetchDoctorData();
+    await _fetchAppointments();
+    await _fetchPatients();
+
+    NotificationService.initialize();
+    NotificationService.setupFCM();
   }
 
   Future<void> _fetchDoctorData() async {
     final user = _auth.currentUser;
-    if (user != null) {
-      final snapshot = await _db.child(user.uid).get();
-      if (snapshot.exists) {
-        final data = Map<String, dynamic>.from(snapshot.value as Map);
-        setState(() {
-          _doctorName = data['name'] ?? "Lab Doctor";
-        });
-      }
+    if (user == null) return;
+
+    final snapshot = await _db.child("users/${user.uid}").get();
+    if (snapshot.exists) {
+      final data = Map<String, dynamic>.from(snapshot.value as Map);
+      setState(() {
+        _doctorName = data['name'] ?? "Lab Doctor";
+      });
     }
   }
 
   Future<void> _fetchAppointments() async {
     setState(() => _loadingAppointments = true);
     final doctorId = _auth.currentUser!.uid;
-    final snapshot = await FirebaseDatabase.instance
-        .ref()
+
+    final snapshot = await _db
         .child('appointments')
         .orderByChild('labDoctorId')
         .equalTo(doctorId)
@@ -64,13 +68,14 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     if (snapshot.exists) {
       final data = Map<String, dynamic>.from(snapshot.value as Map);
       data.forEach((key, value) {
+        final appt = Map<String, dynamic>.from(value);
         loadedAppointments.add({
           "id": key,
-          "date": value['date'] ?? '',
-          "time": value['time'] ?? '',
-          "patientId": value['patientId'] ?? '',
-          "status": value['status'] ?? '',
-          "requestingDoctorId": value['doctorId'] ?? '',
+          "date": appt['date'] ?? '',
+          "time": appt['time'] ?? '',
+          "patientId": appt['patientId'] ?? '',
+          "status": appt['status'] ?? 'Pending',
+          "requestingDoctorId": appt['requestingDoctorId'] ?? '',
         });
       });
     }
@@ -89,23 +94,25 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
 
     for (var appt in _appointments) {
       final pid = appt['patientId']!;
+      if (pid.isEmpty) continue;
+
       if (!loadedPatients.any((p) => p['uid'] == pid)) {
-        final patientSnapshot = await _db.child(pid).get();
+        final patientSnapshot = await _db.child("users/$pid").get();
         if (patientSnapshot.exists) {
           final pData = Map<String, dynamic>.from(patientSnapshot.value as Map);
           loadedPatients.add({'uid': pid, 'name': pData['name'] ?? 'Patient'});
 
-          // Fetch patient reports
           final patientReports = <Map<String, String>>[];
           if (pData['reports'] != null) {
             final Map<dynamic, dynamic> reportsMap = Map<String, dynamic>.from(
               pData['reports'],
             );
             reportsMap.forEach((key, report) {
+              final reportData = Map<String, dynamic>.from(report);
               patientReports.add({
-                'name': report['reportName'] ?? 'Report',
-                'url': report['reportUrl'] ?? '',
-                'doctorId': report['doctorId'] ?? '',
+                'name': reportData['reportName'] ?? 'Report',
+                'url': reportData['reportUrl'] ?? '',
+                'doctorId': reportData['doctorId'] ?? '',
               });
             });
           }
@@ -169,7 +176,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
               itemCount: _patients.length,
               itemBuilder: (context, index) {
                 final patient = _patients[index];
-
                 return ListTile(
                   title: Text(patient['name']!),
                   subtitle:
@@ -185,7 +191,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                   onTap: () {
                     Navigator.pop(context);
                     final labDoctorId = _auth.currentUser!.uid;
-
                     final appt = _appointments.firstWhere(
                       (a) => a['patientId'] == patient['uid'],
                     );
@@ -213,104 +218,138 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   }
 
   void _viewAppointments() {
-    if (_appointments.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No appointments assigned yet.")),
-      );
-      return;
-    }
-
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PatLabAppointment()), // ✅ Updated
+      MaterialPageRoute(builder: (_) => const LabAppointmentListPage()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Lab Doctor Dashboard - $_doctorName"),
-        backgroundColor: const Color(0xff0064FA),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: _logout,
-          ),
-        ],
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF2196F3), Color(0xFF0D47A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
-      body: (_loadingPatients || _loadingAppointments)
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                children: [
-                  _dashboardCard(
-                    icon: Icons.upload_file,
-                    title: "Upload Reports",
-                    color: Colors.red,
-                    badgeCount: _patients.length,
-                    onTap: _pickPatientAndUpload,
-                  ),
-                  _dashboardCard(
-                    icon: Icons.chat,
-                    title: "Chats",
-                    color: Colors.blue,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DoctorChatlistPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _dashboardCard(
-                    icon: Icons.event,
-                    title: "Lab Appointments",
-                    color: Colors.orange,
-                    badgeCount: _appointments.length,
-                    onTap: _viewAppointments,
-                  ),
-                ],
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text("Lab Doctor Dashboard - $_doctorName"),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: true,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF64B5F6), Color(0xFF1976D2)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Logout',
+              onPressed: _logout,
+            ),
+          ],
+        ),
+        body: (_loadingPatients || _loadingAppointments)
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(16),
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  children: [
+                    _dashboardCard(
+                      icon: Icons.upload_file,
+                      title: "Upload Reports",
+                      color1: Colors.pinkAccent,
+                      color2: Colors.redAccent,
+                      badgeCount: _patients.length,
+                      onTap: _pickPatientAndUpload,
+                    ),
+                    _dashboardCard(
+                      icon: Icons.chat_bubble_outline,
+                      title: "Chats",
+                      color1: Colors.cyan,
+                      color2: Colors.teal,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DoctorChatlistPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    _dashboardCard(
+                      icon: Icons.event,
+                      title: "Lab Appointments",
+                      color1: Colors.orangeAccent,
+                      color2: Colors.deepOrange,
+                      badgeCount: _appointments.length,
+                      onTap: _viewAppointments,
+                    ),
+                  ],
+                ),
+              ),
+      ),
     );
   }
 
   Widget _dashboardCard({
     required IconData icon,
     required String title,
-    required Color color,
+    required Color color1,
+    required Color color2,
     VoidCallback? onTap,
     int badgeCount = 0,
   }) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
       child: Stack(
         children: [
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
             decoration: BoxDecoration(
-              color: color.withAlpha(25),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color, width: 1),
+              gradient: LinearGradient(
+                // ignore: deprecated_member_use
+                colors: [color1.withOpacity(0.9), color2.withOpacity(0.9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  // ignore: deprecated_member_use
+                  color: color2.withOpacity(0.4),
+                  blurRadius: 8,
+                  offset: const Offset(3, 3),
+                ),
+              ],
             ),
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 40, color: color),
-                  const SizedBox(height: 8),
+                  Icon(icon, size: 45, color: Colors.white),
+                  const SizedBox(height: 10),
                   Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: color,
+                      color: Colors.white,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -325,13 +364,16 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.red,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 4),
+                  ],
                 ),
                 child: Text(
                   '$badgeCount',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Colors.red,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),

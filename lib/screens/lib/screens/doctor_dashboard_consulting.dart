@@ -3,7 +3,6 @@ import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-
 import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
 import 'package:dr_shahin_uk/screens/view_documents_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
@@ -30,14 +29,14 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
   void initState() {
     super.initState();
     _initDoctor();
-    NotificationService.initialize(); // 👈 initialize local notifications
-    NotificationService.setupFCM(); // 👈 setup FCM token & listeners
+    NotificationService.initialize();
+    NotificationService.setupFCM();
   }
 
   Future<void> _initDoctor() async {
     await _fetchDoctorData();
     await _fetchAppointments();
-    await _fetchDoctorPatients(); // 👈 fetch patients related to this doctor
+    await _fetchDoctorPatients();
   }
 
   Future<void> _fetchDoctorData() async {
@@ -53,7 +52,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     }
   }
 
-  // ✅ fetch appointments for this doctor
   Future<void> _fetchAppointments() async {
     setState(() => _loadingAppointments = true);
     final doctorId = _auth.currentUser!.uid;
@@ -100,7 +98,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     });
   }
 
-  // ✅ show only patients who have appointments with this doctor
   Future<void> _fetchDoctorPatients() async {
     final doctorId = _auth.currentUser!.uid;
     final appointmentSnapshot = await FirebaseDatabase.instance
@@ -123,7 +120,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
       }
     }
 
-    // Now fetch patient names
     final List<Map<String, String>> loadedPatients = [];
     for (var id in patientIds) {
       final patientSnapshot = await _db.child(id).get();
@@ -262,140 +258,173 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final Color primary = const Color(0xff0064FA);
+
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text("Consulting Doctor Dashboard - $_doctorName"),
-        backgroundColor: const Color(0xff0064FA),
+        backgroundColor: primary,
+        title: Text("Welcome, $_doctorName"),
         actions: [
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Dashboard Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                // ignore: deprecated_member_use
+                color: primary.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _dashboardCard(
-                    icon: Icons.event,
-                    title: "Appointments",
-                    color: Colors.green,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DoctorAppointmentListPage(),
-                        ),
-                      );
-                    },
+                  const Icon(
+                    Icons.local_hospital,
+                    color: Colors.white,
+                    size: 40,
                   ),
-                  _dashboardCard(
-                    icon: Icons.upload_file,
-                    title: "Upload Reports",
-                    color: Colors.red,
-                    onTap: _pickPatientAndUpload,
+                  const SizedBox(height: 10),
+                  Text(
+                    "Consulting Doctor Dashboard",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  _dashboardCard(
-                    icon: Icons.folder_open,
-                    title: "View Documents",
-                    color: Colors.orange,
-                    onTap: _pickPatientToViewDocuments,
-                  ),
-                  _dashboardCard(
-                    icon: Icons.share,
-                    title: "Shared Reports",
-                    color: Colors.teal,
-                    onTap: _openSharedReports,
-                  ),
-                  _dashboardCard(
-                    icon: Icons.chat,
-                    title: "Chats",
-                    color: Colors.blue,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DoctorChatlistPage(),
-                        ),
-                      );
-                    },
+                  Text(
+                    _doctorName,
+                    style: const TextStyle(color: Colors.white70, fontSize: 16),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Upcoming Appointments:",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+
+            // Grid Menu (LabDashboard Style)
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              children: [
+                _dashboardCard(Icons.event, "Appointments", Colors.green, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DoctorAppointmentsRealtimePage(),
+                    ),
+                  );
+                }),
+                _dashboardCard(
+                  Icons.upload_file,
+                  "Upload Reports",
+                  Colors.red,
+                  _pickPatientAndUpload,
                 ),
-              ),
-              const SizedBox(height: 10),
-              _loadingAppointments
-                  ? const Center(child: CircularProgressIndicator())
-                  : _appointments.isEmpty
-                  ? const Text("No upcoming appointments")
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _appointments.length,
-                      itemBuilder: (context, index) {
-                        final appt = _appointments[index];
-                        return Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.person),
-                            title: Text(appt['patientName']!),
-                            subtitle: Text(
-                              "${appt['date']} at ${appt['time']}",
+                _dashboardCard(
+                  Icons.folder_open,
+                  "View Documents",
+                  Colors.orange,
+                  _pickPatientToViewDocuments,
+                ),
+                _dashboardCard(
+                  Icons.share,
+                  "Shared Reports",
+                  Colors.teal,
+                  _openSharedReports,
+                ),
+                _dashboardCard(Icons.chat, "Chats", Colors.blue, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DoctorChatlistPage(),
+                    ),
+                  );
+                }),
+              ],
+            ),
+
+            const SizedBox(height: 30),
+            const Text(
+              "Upcoming Appointments",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+
+            _loadingAppointments
+                ? const Center(child: CircularProgressIndicator())
+                : _appointments.isEmpty
+                ? const Text("No upcoming appointments.")
+                : Column(
+                    children: _appointments.map((appt) {
+                      return Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 3,
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            // ignore: deprecated_member_use
+                            backgroundColor: primary.withOpacity(0.1),
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.black87,
                             ),
                           ),
-                        );
-                      },
-                    ),
-            ],
-          ),
+                          title: Text(appt['patientName']!),
+                          subtitle: Text("${appt['date']} at ${appt['time']}"),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _dashboardCard({
-    required IconData icon,
-    required String title,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _dashboardCard(
+    IconData icon,
+    String title,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: color.withAlpha(25),
+          // ignore: deprecated_member_use
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color, width: 1),
+          // ignore: deprecated_member_use
+          border: Border.all(color: color.withOpacity(0.5)),
         ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 40, color: color),
-              const SizedBox(height: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-                textAlign: TextAlign.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 40, color: color),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                color: color,
+                fontWeight: FontWeight.w600,
               ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );

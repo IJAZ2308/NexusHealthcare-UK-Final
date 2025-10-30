@@ -112,12 +112,19 @@ class BedListScreenState extends State<BedListScreen> {
 
   Future<void> _launchWebsite(String url) async => _launchUrl(url);
 
+  // ✅ Fix: safely parse beds values
   int _getTotalBeds(Map<String, dynamic> hospital) {
     final beds = hospital['beds'];
     if (beds is Map) {
-      return beds.values.fold(0, (prev, value) => prev + (value as int));
+      return beds.values.fold(0, (prev, value) {
+        if (value is int) return prev + value;
+        if (value is double) return prev + value.toInt();
+        if (value is String) return prev + (int.tryParse(value) ?? 0);
+        return prev;
+      });
     }
     if (beds is int) return beds;
+    if (beds is String) return int.tryParse(beds) ?? 0;
     return 0;
   }
 
@@ -127,22 +134,40 @@ class BedListScreenState extends State<BedListScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: beds.entries.map((entry) {
-          final count = entry.value;
+          int count = 0;
+          final value = entry.value;
+          if (value is int) {
+            count = value;
+            // ignore: curly_braces_in_flow_control_structures
+          } else if (value is double)
+            // ignore: curly_braces_in_flow_control_structures
+            count = value.toInt();
+          // ignore: curly_braces_in_flow_control_structures
+          else if (value is String)
+            // ignore: curly_braces_in_flow_control_structures
+            count = int.tryParse(value) ?? 0;
+
           return Text(
             "${entry.key.toUpperCase()} Beds: $count",
             style: TextStyle(
               fontSize: 14,
-              color: count == 0
-                  ? Colors.red
-                  : Colors.black, // Highlight zero beds in red
+              color: count == 0 ? Colors.red : Colors.black,
             ),
           );
         }).toList(),
       );
     } else if (beds != null) {
-      return Text("Total Beds: $beds", style: const TextStyle(fontSize: 14));
+      int count = 0;
+      if (beds is int) {
+        count = beds;
+        // ignore: curly_braces_in_flow_control_structures
+      } else if (beds is String)
+        // ignore: curly_braces_in_flow_control_structures
+        count = int.tryParse(beds) ?? 0;
+
+      return Text("Total Beds: $count", style: const TextStyle(fontSize: 14));
     } else {
-      return const Text("Beds: 20", style: TextStyle(fontSize: 14));
+      return const Text("Beds: N/A", style: TextStyle(fontSize: 14));
     }
   }
 
@@ -258,8 +283,6 @@ class BedListScreenState extends State<BedListScreen> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-
-                              // Buttons: Book Bed + Book Appointment
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceEvenly,
@@ -286,10 +309,8 @@ class BedListScreenState extends State<BedListScreen> {
                                         fontSize: 16,
                                       ),
                                     ),
-                                    onPressed: () =>
-                                        _bookBed(hospital), // Always enabled
+                                    onPressed: () => _bookBed(hospital),
                                   ),
-
                                   ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.deepPurple,

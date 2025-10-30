@@ -1,190 +1,396 @@
-import 'package:dr_shahin_uk/services/notification_service.dart';
+// lib/appointments/doctor_appointments_realtime.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
-// <-- Import NotificationService
 
-class DoctorAppointmentListPage extends StatefulWidget {
-  const DoctorAppointmentListPage({super.key});
+class DoctorAppointmentsRealtimePage extends StatefulWidget {
+  const DoctorAppointmentsRealtimePage({super.key});
 
   @override
-  State<DoctorAppointmentListPage> createState() =>
-      _DoctorAppointmentListPageState();
+  State<DoctorAppointmentsRealtimePage> createState() =>
+      _DoctorAppointmentsRealtimePageState();
 }
 
-class _DoctorAppointmentListPageState extends State<DoctorAppointmentListPage> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref(
+class _DoctorAppointmentsRealtimePageState
+    extends State<DoctorAppointmentsRealtimePage> {
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'appointments',
   );
   final User? _currentDoctor = FirebaseAuth.instance.currentUser;
-  late Stream<DatabaseEvent> _appointmentStream;
 
-  @override
-  void initState() {
-    super.initState();
-    _appointmentStream = _dbRef.onChildAdded;
+  String _selectedFilter = "Present"; // Present / Past / Future
 
-    // Listen for new appointments and send notifications
-    _appointmentStream.listen((event) {
-      final appointment = Map<String, dynamic>.from(
-        event.snapshot.value as Map,
-      );
-      if (appointment['doctorId'] == _currentDoctor?.uid) {
-        _sendAppointmentNotification(appointment);
-      }
-    });
-  }
-
-  /// 🔔 Send push notification for new appointment
-  Future<void> _sendAppointmentNotification(
-    Map<String, dynamic> appointment,
-  ) async {
-    final patientName = appointment['patientName'] ?? 'A patient';
-    final date = appointment['date'] ?? '';
-    final time = appointment['time'] ?? '';
-
-    await NotificationService.sendPushNotification(
-      fcmToken: await _getDoctorFcmToken(),
-      title: "New Appointment Scheduled",
-      body: "$patientName has booked an appointment on $date at $time.",
-    );
-  }
-
-  /// Get FCM token of logged-in doctor
-  Future<String> _getDoctorFcmToken() async {
-    final snapshot = await FirebaseDatabase.instance
-        .ref('users/${_currentDoctor?.uid}/fcmToken')
-        .get();
-    if (snapshot.exists && snapshot.value != null) {
-      return snapshot.value.toString();
+  /// Safely parse the stored dateTime (ISO string) into DateTime
+  DateTime _safeParseDateTime(String? iso) {
+    try {
+      return DateTime.parse(iso!).toLocal();
+    } catch (_) {
+      return DateTime.now();
     }
-    return '';
+  }
+
+  String _formatDateTime(DateTime dt) {
+    return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+  }
+
+  /// Update status in Realtime DB (e.g., Pending, Confirmed, Completed, Cancelled)
+  Future<void> _updateStatus(String appointmentId, String newStatus) async {
+    await _dbRef.child(appointmentId).update({
+      'status': newStatus,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Status updated to $newStatus")));
+    }
+  }
+
+  /// Reschedule: pick new date/time then update the appointment's dateTime
+  Future<void> _rescheduleAppointment(String appointmentId) async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (pickedDate == null) return;
+
+    TimeOfDay? pickedTime = await showTimePicker(
+      // ignore: use_build_context_synchronously
+      context: context,
+      initialTime: const TimeOfDay(hour: 10, minute: 0),
+    );
+    if (pickedTime == null) return;
+
+    final newDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    await _dbRef.child(appointmentId).update({
+      'dateTime': newDateTime.toIso8601String(),
+      'status': 'Pending',
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Appointment rescheduled")));
+    }
+  }
+
+  /// Cancel appointment (delete node)
+  Future<void> _cancelAppointment(String appointmentId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Cancel Appointment"),
+        content: const Text(
+          "Are you sure you want to cancel this appointment?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("No"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Yes"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _dbRef.child(appointmentId).remove();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Appointment cancelled")));
+      }
+    }
+  }
+
+  /// Build list of status action choices
+  List<PopupMenuEntry<String>> _statusMenuItems() {
+    return const [
+      PopupMenuItem(value: 'Pending', child: Text('Pending')),
+      PopupMenuItem(value: 'Confirmed', child: Text('Confirmed')),
+      PopupMenuItem(value: 'Completed', child: Text('Completed')),
+      PopupMenuItem(value: 'Cancelled', child: Text('Cancelled')),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_currentDoctor == null) {
+      return const Scaffold(body: Center(child: Text("Not logged in")));
+    }
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        title: const Text(
-          "My Patients' Appointments",
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        backgroundColor: Colors.deepPurple,
-        elevation: 3,
-      ),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: FirebaseDatabase.instance.ref('appointments').onValue,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-            return const Center(
-              child: Text(
-                "No appointments found.",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+      appBar: AppBar(title: const Text("My Patients' Appointments")),
+      body: Column(
+        children: [
+          const SizedBox(height: 16),
+          // Filter dropdown (Present / Past / Future)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: DropdownButtonFormField<String>(
+              value: _selectedFilter,
+              decoration: InputDecoration(
+                labelText: "Select Appointment Type",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-            );
-          }
-
-          final data = Map<dynamic, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-          final List<Map<String, dynamic>> appointments = [];
-
-          data.forEach((key, value) {
-            final appointment = Map<String, dynamic>.from(value);
-            if (appointment['doctorId'] == _currentDoctor?.uid) {
-              String date = appointment['date'] ?? '';
-              String time = appointment['time'] ?? '';
-
-              DateTime? dateTime;
-              try {
-                dateTime = DateTime.parse(date).add(
-                  Duration(
-                    hours: int.tryParse(time.split(":")[0]) ?? 0,
-                    minutes: int.tryParse(time.split(":")[1]) ?? 0,
-                  ),
-                );
-              } catch (e) {
-                dateTime = null;
-              }
-
-              if (dateTime != null && dateTime.isAfter(DateTime.now())) {
-                appointments.add({
-                  'patientName': appointment['patientName'] ?? 'Unknown',
-                  'notes': appointment['notes'] ?? '',
-                  'dateTime': dateTime,
-                });
-              }
-            }
-          });
-
-          if (appointments.isEmpty) {
-            return const Center(
-              child: Text(
-                "No upcoming appointments.",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-            );
-          }
-
-          appointments.sort(
-            (a, b) => (a['dateTime'] as DateTime).compareTo(
-              a['dateTime'] as DateTime,
+              items: const [
+                DropdownMenuItem(
+                  value: "Present",
+                  child: Text("Today's Appointments"),
+                ),
+                DropdownMenuItem(
+                  value: "Past",
+                  child: Text("Past Appointments"),
+                ),
+                DropdownMenuItem(
+                  value: "Future",
+                  child: Text("Future Appointments"),
+                ),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _selectedFilter = val);
+                }
+              },
             ),
-          );
+          ),
+          const SizedBox(height: 12),
 
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            itemCount: appointments.length,
-            itemBuilder: (context, index) {
-              final appt = appointments[index];
-              final formattedDate = DateFormat(
-                'dd MMM yyyy, hh:mm a',
-              ).format(appt['dateTime']);
+          // Stream of appointments from Realtime DB
+          Expanded(
+            child: StreamBuilder<DatabaseEvent>(
+              stream: _dbRef.onValue,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 3,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 16,
-                  ),
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.deepPurple.shade100,
-                    child: const Icon(Icons.person, color: Colors.deepPurple),
-                  ),
-                  title: Text(
-                    appt['patientName'],
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      "🕒 $formattedDate\n📝 ${appt['notes']}",
-                      style: const TextStyle(height: 1.4),
-                    ),
-                  ),
-                  trailing: Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.deepPurple.shade300,
-                  ),
-                ),
-              );
-            },
-          );
-        },
+                if (!snapshot.hasData ||
+                    snapshot.data!.snapshot.value == null) {
+                  return const Center(child: Text("No appointments found"));
+                }
+
+                final Map<dynamic, dynamic> raw =
+                    snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+
+                // Collect only appointments for this doctor
+                final List<Map<String, dynamic>> appointments = [];
+                raw.forEach((key, value) {
+                  final Map<String, dynamic> appt = Map<String, dynamic>.from(
+                    value as Map,
+                  );
+                  // If doctorName field contains doctor uid or doctorId field exists, check appropriately.
+                  // We'll check for doctorId first, fallback to doctorName match.
+                  final matchesDoctor =
+                      (appt['doctorId'] != null &&
+                          appt['doctorId'] == _currentDoctor.uid) ||
+                      (appt['doctorName'] != null &&
+                          appt['doctorName'] == _currentDoctor.displayName);
+
+                  if (matchesDoctor) {
+                    appt['id'] = key;
+                    appointments.add(appt);
+                  }
+                });
+
+                if (appointments.isEmpty) {
+                  return const Center(
+                    child: Text("No appointments for this doctor"),
+                  );
+                }
+
+                // Filter by Present / Past / Future
+                final now = DateTime.now();
+                final today = DateTime(now.year, now.month, now.day);
+
+                final filtered = appointments.where((appt) {
+                  final dt = _safeParseDateTime(appt['dateTime'] as String?);
+                  final day = DateTime(dt.year, dt.month, dt.day);
+                  if (_selectedFilter == 'Present') return day == today;
+                  if (_selectedFilter == 'Past') return day.isBefore(today);
+                  if (_selectedFilter == 'Future') return day.isAfter(today);
+                  return true;
+                }).toList();
+
+                if (filtered.isEmpty) {
+                  return const Center(
+                    child: Text("No appointments for this selection"),
+                  );
+                }
+
+                // Sort by date/time ascending
+                filtered.sort((a, b) {
+                  final da = _safeParseDateTime(a['dateTime'] as String?);
+                  final db = _safeParseDateTime(b['dateTime'] as String?);
+                  return da.compareTo(db);
+                });
+
+                return ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final appt = filtered[index];
+                    final id = appt['id'] as String;
+                    final dt = _safeParseDateTime(appt['dateTime'] as String?);
+                    final formatted = _formatDateTime(dt);
+                    final status = (appt['status'] ?? 'Pending') as String;
+                    final reason = appt['reason'] ?? '';
+                    final patientName =
+                        appt['patientName'] ?? 'Unknown Patient';
+                    final doctorName = appt['doctorName'] ?? '';
+
+                    // status color mapping
+                    Color statusColor;
+                    switch (status.toLowerCase()) {
+                      case 'completed':
+                        statusColor = Colors.green;
+                        break;
+                      case 'confirmed':
+                        statusColor = Colors.blue;
+                        break;
+                      case 'cancelled':
+                        statusColor = Colors.red;
+                        break;
+                      default:
+                        statusColor = Colors.orange;
+                    }
+
+                    final bool canCancel = dt.isAfter(DateTime.now());
+                    final bool canReschedule = dt.isAfter(
+                      DateTime.now().add(const Duration(hours: 1)),
+                    );
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 12,
+                        ),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.teal.shade100,
+                          child: const Icon(Icons.person, color: Colors.teal),
+                        ),
+                        title: Text(
+                          patientName,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 6),
+                            Text(
+                              "Reason: $reason",
+                              style: const TextStyle(height: 1.3),
+                            ),
+                            Text(
+                              "Doctor: $doctorName",
+                              style: const TextStyle(height: 1.3),
+                            ),
+                            Text(
+                              "When: $formatted",
+                              style: const TextStyle(height: 1.3),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                "Status: $status",
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: SizedBox(
+                          width: 120,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // status menu
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: PopupMenuButton<String>(
+                                  tooltip: "Change status",
+                                  onSelected: (value) =>
+                                      _updateStatus(id, value),
+                                  itemBuilder: (_) => _statusMenuItems(),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(Icons.more_vert, size: 18),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // action buttons row
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.edit_calendar,
+                                      color: canReschedule
+                                          ? Colors.green.shade400
+                                          : Colors.grey,
+                                    ),
+                                    onPressed: canReschedule
+                                        ? () => _rescheduleAppointment(id)
+                                        : null,
+                                    tooltip: "Reschedule",
+                                  ),
+                                  if (canCancel)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.cancel,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () => _cancelAppointment(id),
+                                      tooltip: "Cancel",
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

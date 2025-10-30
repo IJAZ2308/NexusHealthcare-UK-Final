@@ -110,6 +110,33 @@ class AuthService {
     }
   }
 
+  Future<String?> uploadProfileImage(File imageFile) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse("https://api.cloudinary.com/v1_1/dij8c34qm/auto/upload"),
+      );
+      request.fields['upload_preset'] = uploadPreset;
+      request.files.add(
+        await http.MultipartFile.fromPath('file', imageFile.path),
+      );
+
+      final response = await request.send();
+      final resBody = await response.stream.bytesToString();
+      final data = json.decode(resBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return data['secure_url'];
+      } else {
+        debugPrint("Cloudinary upload failed: $data");
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error uploading profile image to Cloudinary: $e');
+      return null;
+    }
+  }
+
   Future<bool> registerUser({
     required String email,
     required String password,
@@ -120,7 +147,8 @@ class AuthService {
     required String specialization,
     required bool isVerified,
     required String doctorType,
-    required String s, // labDoctor / consultingDoctor
+    required String s,
+    File? profileFile, // labDoctor / consultingDoctor
   }) async {
     try {
       // 1️⃣ Create user in Firebase Auth

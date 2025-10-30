@@ -19,6 +19,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   final TextEditingController _nameController = TextEditingController();
 
   File? _licenseImage;
+  File? _profileImage;
   String error = '';
   bool loading = false;
 
@@ -47,12 +48,22 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   ];
 
   /// Pick license image
-  Future<void> _pickImage() async {
+  Future<void> _pickLicenseImage() async {
     try {
       final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
       if (picked != null) setState(() => _licenseImage = File(picked.path));
     } catch (e) {
-      setState(() => error = 'Failed to pick image: $e');
+      setState(() => error = 'Failed to pick license image: $e');
+    }
+  }
+
+  /// Pick profile image
+  Future<void> _pickProfileImage() async {
+    try {
+      final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (picked != null) setState(() => _profileImage = File(picked.path));
+    } catch (e) {
+      setState(() => error = 'Failed to pick profile image: $e');
     }
   }
 
@@ -63,7 +74,11 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
       return;
     }
     if (_licenseImage == null) {
-      setState(() => error = "Please upload your license.");
+      setState(() => error = "Please upload your license image.");
+      return;
+    }
+    if (_profileImage == null) {
+      setState(() => error = "Please upload your profile image.");
       return;
     }
     if (_selectedCategory == null || _selectedCategory!.trim().isEmpty) {
@@ -77,35 +92,39 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
     });
 
     try {
-      // Upload license to Cloudinary
+      // Upload both images
       final String? licenseUrl = await _authService.uploadLicense(
         _licenseImage!,
       );
-      if (licenseUrl == null) {
+      final String? profileUrl = await _authService.uploadProfileImage(
+        _profileImage!,
+      );
+
+      if (licenseUrl == null || profileUrl == null) {
         setState(() {
           loading = false;
-          error = "License upload failed. Please try again.";
+          error = "Image upload failed. Please try again.";
         });
         return;
       }
 
-      // Register doctor in Firebase Auth & RTDB
+      // Register doctor (now stored under /doctors/)
       final bool success = await _authService.registerUser(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         name: _nameController.text.trim(),
-        role: "doctor", // important for admin filtering
+        role: "doctor",
         s: _selectedDoctorRole!,
-        licenseUrl: licenseUrl,
+        licenseFile: _licenseImage,
+        profileFile: _profileImage,
         specialization: _selectedCategory!,
-        isVerified: false, // mark as pending
+        isVerified: false,
         doctorType: "pending",
       );
 
       if (!mounted) return;
 
       if (success) {
-        // Navigate to pending verification screen
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const VerifyPending()),
@@ -190,13 +209,29 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
               ),
               const SizedBox(height: 20),
 
+              // Profile Image Upload Section
+              const Text("Profile Image"),
+              const SizedBox(height: 5),
+              _profileImage != null
+                  ? Image.file(_profileImage!, height: 100)
+                  : const Text("No profile image uploaded"),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _pickProfileImage,
+                child: const Text("Upload Profile Image"),
+              ),
+              const SizedBox(height: 20),
+
+              // License Upload Section
+              const Text("License Image"),
+              const SizedBox(height: 5),
               _licenseImage != null
-                  ? Image.file(_licenseImage!, height: 120)
+                  ? Image.file(_licenseImage!, height: 100)
                   : const Text("No license uploaded"),
               const SizedBox(height: 10),
               ElevatedButton(
-                onPressed: _pickImage,
-                child: const Text("Upload License"),
+                onPressed: _pickLicenseImage,
+                child: const Text("Upload License Image"),
               ),
               const SizedBox(height: 20),
 

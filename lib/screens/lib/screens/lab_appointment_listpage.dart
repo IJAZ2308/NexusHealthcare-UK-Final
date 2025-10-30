@@ -24,72 +24,69 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
   @override
   void initState() {
     super.initState();
-    _fetchLabAppointments();
+    _listenForLabAppointments();
   }
 
-  Future<void> _fetchLabAppointments() async {
-    setState(() => _loading = true);
+  void _listenForLabAppointments() {
+    _appointmentsRef.onValue.listen((event) async {
+      final snapshot = event.snapshot;
+      List<Map<String, String>> loadedAppointments = [];
 
-    final snapshot = await _appointmentsRef
-        .orderByChild('requiresLabReport')
-        .equalTo(true)
-        .get();
+      if (snapshot.exists) {
+        final data = Map<String, dynamic>.from(snapshot.value as Map);
 
-    final List<Map<String, String>> loadedAppointments = [];
+        for (var entry in data.entries) {
+          final appointment = Map<String, dynamic>.from(entry.value);
 
-    if (snapshot.exists) {
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
+          // Include only those requiring a lab report
+          if (appointment['requiresLabReport'] == true) {
+            // Show only if assigned to this lab or pending assignment
+            if (appointment['labDoctorId'] == labDoctorId ||
+                appointment['labDoctorId'] == null) {
+              String patientName = "Unknown";
+              String treatingDoctorName = "Unknown";
 
-      for (var entry in data.entries) {
-        final appointment = Map<String, dynamic>.from(entry.value);
+              // Fetch patient name
+              if (appointment['patientId'] != null) {
+                final patientSnap = await _usersRef
+                    .child(appointment['patientId'])
+                    .get();
+                if (patientSnap.exists) {
+                  final pdata = Map<String, dynamic>.from(
+                    patientSnap.value as Map,
+                  );
+                  patientName = pdata['name'] ?? "Unknown";
+                }
+              }
 
-        // Only include appointments assigned to this lab doctor or pending
-        if (appointment['labDoctorId'] == labDoctorId ||
-            appointment['labDoctorId'] == null) {
-          String patientName = "Unknown";
-          String treatingDoctorName = "Unknown";
+              // Fetch treating doctor name
+              if (appointment['doctorId'] != null) {
+                final docSnap = await _usersRef
+                    .child(appointment['doctorId'])
+                    .get();
+                if (docSnap.exists) {
+                  final ddata = Map<String, dynamic>.from(docSnap.value as Map);
+                  treatingDoctorName = ddata['name'] ?? "Unknown";
+                }
+              }
 
-          // Get patient name
-          if (appointment['patientId'] != null) {
-            final patientSnapshot = await _usersRef
-                .child(appointment['patientId'])
-                .get();
-            if (patientSnapshot.exists) {
-              final patientData = Map<String, dynamic>.from(
-                patientSnapshot.value as Map,
-              );
-              patientName = patientData['name'] ?? "Unknown";
+              loadedAppointments.add({
+                'id': entry.key,
+                'patientName': patientName,
+                'treatingDoctorName': treatingDoctorName,
+                'date': appointment['date'] ?? '',
+                'time': appointment['time'] ?? '',
+                'status': appointment['status'] ?? '',
+              });
             }
           }
-
-          // Get doctor who requested report (treating doctor)
-          if (appointment['doctorId'] != null) {
-            final doctorSnapshot = await _usersRef
-                .child(appointment['doctorId'])
-                .get();
-            if (doctorSnapshot.exists) {
-              final doctorData = Map<String, dynamic>.from(
-                doctorSnapshot.value as Map,
-              );
-              treatingDoctorName = doctorData['name'] ?? "Unknown";
-            }
-          }
-
-          loadedAppointments.add({
-            'id': entry.key,
-            'patientName': patientName,
-            'treatingDoctorName': treatingDoctorName,
-            'date': appointment['date'] ?? '',
-            'time': appointment['time'] ?? '',
-            'status': appointment['status'] ?? '',
-          });
         }
       }
-    }
 
-    setState(() {
-      _appointments = loadedAppointments;
-      _loading = false;
+      setState(() {
+        _appointments = loadedAppointments;
+        _loading = false;
+      });
     });
   }
 
@@ -109,12 +106,31 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
               itemBuilder: (context, index) {
                 final appt = _appointments[index];
                 return Card(
-                  margin: const EdgeInsets.all(10),
+                  elevation: 3,
+                  margin: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 12,
+                  ),
                   child: ListTile(
-                    leading: const Icon(Icons.description),
-                    title: Text(appt['patientName']!),
-                    subtitle: Text(
-                      "Requested by: ${appt['treatingDoctorName']}\nDate: ${appt['date']} at ${appt['time']}\nStatus: ${appt['status']}",
+                    leading: const Icon(
+                      Icons.biotech_rounded,
+                      color: Colors.deepPurple,
+                    ),
+                    title: Text(
+                      appt['patientName']!,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 6.0),
+                      child: Text(
+                        "Requested by: ${appt['treatingDoctorName']}\n"
+                        "Date: ${appt['date']} at ${appt['time']}\n"
+                        "Status: ${appt['status']}",
+                        style: const TextStyle(height: 1.4),
+                      ),
                     ),
                     isThreeLine: true,
                   ),

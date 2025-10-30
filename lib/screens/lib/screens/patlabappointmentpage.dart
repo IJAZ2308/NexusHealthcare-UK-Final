@@ -24,16 +24,16 @@ class _PatLabAppointmentState extends State<PatLabAppointment> {
   @override
   void initState() {
     super.initState();
-    _fetchLabAppointments();
+    _fetchPatientLabAppointments();
   }
 
-  Future<void> _fetchLabAppointments() async {
+  Future<void> _fetchPatientLabAppointments() async {
     setState(() => _isLoading = true);
-    final labDoctorId = _auth.currentUser!.uid;
+    final patientId = _auth.currentUser!.uid;
 
     final snapshot = await _appointmentsDb
-        .orderByChild('labDoctorId') // field that stores assigned lab doctor
-        .equalTo(labDoctorId)
+        .orderByChild('patientId') // fetch appointments by patientId
+        .equalTo(patientId)
         .get();
 
     final List<Map<String, String>> loadedAppointments = [];
@@ -42,30 +42,35 @@ class _PatLabAppointmentState extends State<PatLabAppointment> {
       final data = Map<String, dynamic>.from(snapshot.value as Map);
       for (var key in data.keys) {
         final appt = Map<String, dynamic>.from(data[key]);
-        final patientId = appt['patientId'] ?? '';
-        final requestingDoctorId = appt['requestingDoctorId'] ?? '';
 
-        // Fetch patient name
-        String patientName = 'Unknown';
-        final patientSnap = await _usersDb.child(patientId).get();
-        if (patientSnap.exists) {
-          final patientData = Map<String, dynamic>.from(
-            patientSnap.value as Map,
-          );
-          patientName = patientData['name'] ?? 'Patient';
-        }
+        final requestingDoctorId = appt['requestingDoctorId'] ?? '';
+        final labDoctorId = appt['labDoctorId'] ?? '';
 
         // Fetch requesting doctor name
-        String doctorName = 'Unknown';
-        final doctorSnap = await _usersDb.child(requestingDoctorId).get();
-        if (doctorSnap.exists) {
-          final doctorData = Map<String, dynamic>.from(doctorSnap.value as Map);
-          doctorName = doctorData['name'] ?? 'Doctor';
+        String requestingDoctorName = 'Unknown';
+        if (requestingDoctorId.isNotEmpty) {
+          final doctorSnap = await _usersDb.child(requestingDoctorId).get();
+          if (doctorSnap.exists) {
+            final doctorData = Map<String, dynamic>.from(
+              doctorSnap.value as Map,
+            );
+            requestingDoctorName = doctorData['name'] ?? 'Doctor';
+          }
+        }
+
+        // Fetch lab doctor name
+        String labDoctorName = 'Unknown';
+        if (labDoctorId.isNotEmpty) {
+          final labSnap = await _usersDb.child(labDoctorId).get();
+          if (labSnap.exists) {
+            final labData = Map<String, dynamic>.from(labSnap.value as Map);
+            labDoctorName = labData['name'] ?? 'Lab Doctor';
+          }
         }
 
         loadedAppointments.add({
-          'patientName': patientName,
-          'doctorName': doctorName,
+          'labDoctorName': labDoctorName,
+          'requestingDoctorName': requestingDoctorName,
           'status': appt['status'] ?? 'Pending',
           'date': appt['date'] ?? '',
           'time': appt['time'] ?? '',
@@ -83,13 +88,13 @@ class _PatLabAppointmentState extends State<PatLabAppointment> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Lab Appointments"),
+        title: const Text("My Lab Appointments"),
         backgroundColor: const Color(0xff0064FA),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _labAppointments.isEmpty
-          ? const Center(child: Text("No lab appointments assigned"))
+          ? const Center(child: Text("No lab appointments booked"))
           : ListView.builder(
               itemCount: _labAppointments.length,
               itemBuilder: (context, index) {
@@ -100,9 +105,11 @@ class _PatLabAppointmentState extends State<PatLabAppointment> {
                     horizontal: 16,
                   ),
                   child: ListTile(
-                    title: Text(appt['patientName']!),
+                    title: Text("Lab Doctor: ${appt['labDoctorName']}"),
                     subtitle: Text(
-                      "Requested by: ${appt['doctorName']}\nDate: ${appt['date']} ${appt['time']}\nStatus: ${appt['status']}",
+                      "Requested by: ${appt['requestingDoctorName']}\n"
+                      "Date: ${appt['date']} ${appt['time']}\n"
+                      "Status: ${appt['status']}",
                     ),
                   ),
                 );

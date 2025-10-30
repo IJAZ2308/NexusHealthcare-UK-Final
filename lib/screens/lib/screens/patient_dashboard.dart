@@ -179,7 +179,9 @@ class _PatientDashboardState extends State<PatientDashboard> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const DoctorListPage()),
+                      MaterialPageRoute(
+                        builder: (_) => const DoctorListPage(selectMode: false),
+                      ),
                     );
                   },
                 ),
