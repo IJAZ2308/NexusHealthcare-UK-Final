@@ -36,20 +36,6 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
   importance: Importance.high,
 );
 
-/// ------------------------ MAIN APP ------------------------
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'MediBridge360',
-      debugShowCheckedModeBanner: false,
-      home: const LoginScreen(),
-    );
-  }
-}
-
 /// ------------------------ FIREBASE OPTIONS ------------------------
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
@@ -62,6 +48,20 @@ class DefaultFirebaseOptions {
       appId: "1:943831581906:web:a9812cd3ca574d2ee5d90b",
       measurementId: "G-KP31V1Q2P9",
       databaseURL: "https://drshahin-uk-default-rtdb.firebaseio.com/",
+    );
+  }
+}
+
+/// ------------------------ MAIN APP ------------------------
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'VitaLink',
+      debugShowCheckedModeBanner: false,
+      home: const LoginScreen(),
     );
   }
 }
@@ -165,13 +165,13 @@ class AuthService {
 
         await userRef.set({
           'uid': uid,
-          'firstName': name, // optionally split firstName / lastName
+          'firstName': name,
           'email': email,
           'role': role,
-          'doctorRole': s, // labDoctor / consultingDoctor
+          'doctorRole': s,
           'licenseUrl': licenseUrl ?? '',
           'specialization': specialization,
-          'status': doctorType, // pending
+          'status': doctorType,
           'isVerified': isVerified,
           'fcmToken': '',
           'createdAt': DateTime.now().toIso8601String(),
@@ -221,9 +221,7 @@ class AuthService {
           return null; // Doctor must be verified
         }
 
-        // Save FCM token after login
         await saveUserToken();
-
         return data['role'] as String?;
       }
 
@@ -236,9 +234,7 @@ class AuthService {
         snapshot.value as Map,
       );
 
-      // Save FCM token after login
       await saveUserToken();
-
       return data['role'] as String?;
     } catch (e) {
       developer.log("Login error", error: e);
@@ -246,45 +242,6 @@ class AuthService {
     }
   }
 
-  /// ------------------------ FCM BACKGROUND HANDLER ------------------------
-  Future<void> _firebaseMessagingBackgroundHandler(
-    RemoteMessage message,
-  ) async {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    developer.log("🔔 Handling background message: ${message.messageId}");
-
-    _showLocalNotification(message);
-  }
-
-  /// ------------------------ LOCAL NOTIFICATION HELPER ------------------------
-  Future<void> _showLocalNotification(RemoteMessage message) async {
-    RemoteNotification? notification = message.notification;
-    if (notification != null && Platform.isAndroid) {
-      final AndroidNotificationDetails androidDetails =
-          AndroidNotificationDetails(
-            channel.id,
-            channel.name,
-            channelDescription: channel.description,
-            importance: Importance.high,
-            priority: Priority.high,
-          );
-
-      final NotificationDetails platformDetails = NotificationDetails(
-        android: androidDetails,
-      );
-
-      await flutterLocalNotificationsPlugin.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        platformDetails,
-      );
-    }
-  }
-
-  /// ------------------------ SAVE FCM TOKEN ------------------------
   Future<void> saveUserToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -298,7 +255,6 @@ class AuthService {
     }
   }
 
-  /// ------------------------ FOREGROUND FCM LISTENER ------------------------
   void setupFCMListeners(BuildContext context) {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       _showLocalNotification(message);
@@ -308,33 +264,65 @@ class AuthService {
       _showLocalNotification(message);
     });
   }
+}
 
-  /// ------------------------ MAIN FUNCTION ------------------------
-  void main() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+/// ------------------------ FCM BACKGROUND HANDLER ------------------------
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  developer.log("🔔 Handling background message: ${message.messageId}");
+  _showLocalNotification(message);
+}
+
+/// ------------------------ LOCAL NOTIFICATION HELPER ------------------------
+Future<void> _showLocalNotification(RemoteMessage message) async {
+  RemoteNotification? notification = message.notification;
+  if (notification != null && Platform.isAndroid) {
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
+          importance: Importance.high,
+          priority: Priority.high,
+        );
+
+    final NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
     );
 
-    // Initialize local notifications
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    final InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
-
-    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-
-    // Create notification channel
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
-
-    // FCM background handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    runApp(const MyApp());
+    await flutterLocalNotificationsPlugin.show(
+      notification.hashCode,
+      notification.title,
+      notification.body,
+      platformDetails,
+    );
   }
+}
+
+/// ------------------------ MAIN FUNCTION ------------------------
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize local notifications
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  final InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  // Create notification channel
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(channel);
+
+  // FCM background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  runApp(const MyApp());
 }
